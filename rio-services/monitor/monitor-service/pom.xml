@@ -35,8 +35,8 @@
         </dependency>
         
         <dependency>
-            <groupId>au.net.zeus.jgdms</groupId>
-            <artifactId>jgdms-ui-factory</artifactId>
+            <groupId>net.jini.lookup</groupId>
+		    <artifactId>serviceui</artifactId>
         </dependency>
 
         <dependency>
@@ -65,8 +65,9 @@
         </dependency>
 
         <dependency>
-            <groupId>au.net.zeus.jgdms.reggie</groupId>
-            <artifactId>reggie-service</artifactId>
+            <groupId>org.apache.river</groupId>
+            <artifactId>reggie</artifactId>
+            <version>${river.version}</version>
             <scope>test</scope>
         </dependency>
 

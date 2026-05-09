@@ -23,14 +23,13 @@
         </dependency>
 
         <dependency>
-		    <groupId>au.net.zeus.jgdms</groupId>
-		    <artifactId>jgdms-ui-factory</artifactId>
+		    <groupId>net.jini.lookup</groupId>
+		    <artifactId>serviceui</artifactId>
         </dependency>
 
         <dependency>
-            <groupId>au.net.zeus.jgdms</groupId>
-            <artifactId>jgdms-platform</artifactId>
-            <version>${river.version}</version>
+            <groupId>net.jini</groupId>
+            <artifactId>jsk-platform</artifactId>
             <scope>provided</scope>
         </dependency>
     
