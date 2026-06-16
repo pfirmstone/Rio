@@ -19,7 +19,7 @@
  */
 
 import org.rioproject.util.RioHome
-import org.rioproject.util.ServiceDescriptorUtil
+import org.rioproject.start.util.ServiceDescriptorUtil
 import org.rioproject.config.Component
 import com.sun.jini.start.ServiceDescriptor
 import org.rioproject.resolver.maven2.Repository
@@ -31,7 +31,10 @@ class StartAllConfig {
         String m2Repo = Repository.getLocalRepository().absolutePath
         String rioHome = RioHome.get()
 
-        def websterRoots = [rioHome+'/deploy', ';', m2Repo]
+        def websterRoots = [ rioHome+'/lib-dl',  ';',
+                             rioHome+'/lib',     ';',
+                             rioHome+'/deploy',  ';',
+                             m2Repo]
 
         String policyFile = rioHome+'/policy/policy.all'
         def monitorConfigs = [rioHome+'/config/common.groovy',
@@ -49,6 +52,6 @@ class StartAllConfig {
             ServiceDescriptorUtil.getCybernode(policyFile, cybernodeConfigs as String[])
         ]
 
-        return serviceDescriptors as ServiceDescriptor[]
+        serviceDescriptors as ServiceDescriptor[]
     }
 }

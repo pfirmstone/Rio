@@ -1,12 +1,12 @@
 /*
- * Copyright 2011 the original author or authors
- *
+ * Copyright to the original author or authors.
+ * 
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
+ * 
+ *         http://www.apache.org/licenses/LICENSE-2.0
+ * 
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -33,31 +33,15 @@ import static org.junit.Assert.*;
  */
 public class WebsterUTest {
     @Test
-    public void createWebsterWithConfig() {
-        Throwable t = null;
-        Webster w = null;
-        try {
-            w = new Webster(new File(System.getProperty("user.dir")+"/src/test/resources/webster.groovy"));
-        } catch (BindException e) {
-            t = e;
-        } catch (MalformedURLException e) {
-            e.printStackTrace();
-        }
-        assertNull(t);
+    public void createWebsterWithConfig() throws Exception {
+        Webster w = new Webster(new File(System.getProperty("user.dir")+"/src/test/resources/webster.groovy"));
         assertNotNull(w);
         w.terminate();
     }
 
     @Test
-    public void createWebsterWithPortAndRoots() {
-        Throwable t = null;
-        Webster w = null;
-        try {
-            w = new Webster(9000, System.getProperty("user.dir"));
-        } catch (BindException e) {
-            t = e;
-        }
-        assertNull(t);
+    public void createWebsterWithPortAndRoots() throws Exception {
+        Webster w = new Webster(9000, System.getProperty("user.dir"));
         assertNotNull(w);
         assertEquals(9000, w.getPort());
         assertEquals(System.getProperty("user.dir"), w.getRoots());
@@ -65,15 +49,8 @@ public class WebsterUTest {
     }
 
     @Test
-    public void createWebsterWithPortAndRootsAndInetAddress() {
-        Throwable t = null;
-        Webster w = null;
-        try {
-            w = new Webster(9000, System.getProperty("user.dir"), InetAddress.getLocalHost().getHostAddress());
-        } catch (Exception e) {
-            t = e;
-        }
-        assertNull(t);
+    public void createWebsterWithPortAndRootsAndInetAddress() throws Exception {
+        Webster w = new Webster(9000, System.getProperty("user.dir"), InetAddress.getLocalHost().getHostAddress());
         assertNotNull(w);
         assertEquals(9000, w.getPort());
         assertEquals(System.getProperty("user.dir"), w.getRoots());
@@ -81,39 +58,25 @@ public class WebsterUTest {
     }
 
     @Test
-    public void createWebsterWithOptionsAsArray() {
+    public void createWebsterWithOptionsAsArray() throws Exception {
         int port = 40000;
         String root = System.getProperty("user.dir");
-        Throwable t = null;
-        Webster w = null;
-        try {
-            String[] options = new String[]{"-port", Integer.toString(port),
-                                            "-roots", root,
-                                            "-bindAddress", InetAddress.getLocalHost().getHostAddress()};
-            w = new Webster(options, null);
-        } catch (Exception e) {
-            t = e;
-        }
-        assertNull(t);
+        String[] options = new String[]{"-port", Integer.toString(port),
+                "-roots", root,
+                "-bindAddress", InetAddress.getLocalHost().getHostAddress()};
+        Webster w = new Webster(options, null);
         assertNotNull(w);
         assertEquals(port, w.getPort());
         assertEquals(System.getProperty("user.dir"), w.getRoots());
     }
 
     @Test
-    public void createWebsterWithPortRangeUsingOptions() {
-        Throwable t = null;
-        Webster w = null;
+    public void createWebsterWithPortRangeUsingOptions() throws Exception {
         String root = System.getProperty("user.dir");
-        try {
-            String[] options = new String[]{"-portRange", "10000-10005",
-                                            "-roots", root,
-                                            "-bindAddress", InetAddress.getLocalHost().getHostAddress()};
-            w = new Webster(options, null);
-        } catch (Exception e) {
-            t = e;
-        }
-        assertNull(t);
+        String[] options = new String[]{"-portRange", "10000-10005",
+                "-roots", root,
+                "-bindAddress", InetAddress.getLocalHost().getHostAddress()};
+        Webster w = new Webster(options, null);
         assertNotNull(w);
         int port = w.getPort();
         assertTrue("Port " + port + " should be >= 10000", port >= 10000);
@@ -121,16 +84,9 @@ public class WebsterUTest {
     }
 
     @Test
-    public void createWebsterWithPortRangeServerSocketFactory() {
-        Throwable t = null;
-        Webster w = null;
+    public void createWebsterWithPortRangeServerSocketFactory() throws Exception {
         String root = System.getProperty("user.dir");
-        try {
-            w = new Webster(new PortRangeServerSocketFactory(10000, 10005), root, null);
-        } catch (Exception e) {
-            t = e;
-        }
-        assertNull(t);
+        Webster w = new Webster(new PortRangeServerSocketFactory(10000, 10005), root, null);
         assertNotNull(w);
         int port = w.getPort();
         assertTrue("Port " + port + " should be >= 10000", port >= 10000);
@@ -138,45 +94,56 @@ public class WebsterUTest {
     }
 
     @Test
-    public void verifyGetFromWebster() {
-        Throwable t = null;
-        Webster w = null;
-        try {
-            w = new Webster(new File(System.getProperty("user.dir")+"/src/test/resources/webster.groovy"));
-        } catch (BindException | MalformedURLException e) {
-            t = e;
-        }
-        assertNull(t);
+    public void verifyGetURI() throws Exception {
+        Webster webster = new Webster(9010, System.getProperty("user.dir"));
+        URI uri = webster.getURI();
+        assertNotNull(uri);
+    }
+
+    @Test
+    public void verifyGetFromWebster() throws Exception {
+        Webster w = new Webster(new File(System.getProperty("user.dir") + "/src/test/resources/webster.groovy"));
         assertNotNull(w);
-        t = null;
-        List<String> items = null;
-        try {
-            items = get(w.getPort());
-        } catch (Exception e) {
-            t = e;
-            e.printStackTrace();
-        }
-        assertNull(t);
+        List<String> items = get(w.getPort());
         assertNotNull(items);
         File cwd = new File(System.getProperty("user.dir"));
-        assertTrue(items.size() == cwd.list().length);
+        assertEquals(items.size(), cwd.list().length);
+    }
+
+    @Test(expected = IOException.class)
+    public void testDirectoryTraversal() throws Exception {
+        Webster w = new Webster(0, System.getProperty("user.dir"));
+        get(w.getPort(), "/%2e%2e/");
+    }
+
+    @Test
+    public void testGetDirectory() throws Exception {
+        Webster w = new Webster(0, System.getProperty("user.dir"));
+        get(w.getPort(), "/%2e/");
+    }
+
+    @Test
+    public void testUseTempDirectory() throws Exception {
+        Webster w = new Webster(0, System.getProperty("java.io.tmpdir"));
+        List<String> items = get(w.getPort());
+        assertNotNull(items);
     }
 
     private List<String> get(int port) throws IOException {
-        URL url = new URL("http://" + InetAddress.getLocalHost().getHostName()+ ":" + port);
-        System.out.println("===> "+url.toExternalForm());
+        return get(port, "");
+    }
+
+    private List<String> get(int port, String path) throws IOException {
+        URL url = new URL("http://" + InetAddress.getLocalHost().getHostName()+ ":" + port + path);
         HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-
         connection.setRequestMethod("GET");
-
         List<String> items = new ArrayList<>();
-
         connection.connect();
-        BufferedReader in = new BufferedReader(new InputStreamReader(connection.getInputStream()));
-
-        String line;
-        while ((line = in.readLine()) != null) {
-            items.add(line);
+        try (BufferedReader in = new BufferedReader(new InputStreamReader(connection.getInputStream()))) {
+            String line;
+            while ((line = in.readLine()) != null) {
+                items.add(line);
+            }
         }
         return items;
     }

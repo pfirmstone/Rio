@@ -1,12 +1,12 @@
 /*
- * Copyright 2008 the original author or authors.
- *
+ * Copyright to the original author or authors.
+ * 
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
+ * 
+ *         http://www.apache.org/licenses/LICENSE-2.0
+ * 
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -38,6 +38,7 @@ import java.io.IOException;
 import java.rmi.MarshalledObject;
 import java.rmi.RemoteException;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -72,12 +73,12 @@ public class InstantiatorResource {
      * The handback option provided by the ServiceBeanInstantiator and sent back
      * to the ServiceBeanInstantiator as part of the ProvisionEvent
      */
-    private final MarshalledObject handback;
+    private final MarshalledObject<?> handback;
     /**
      * A Copy of the ResourceCapability object from the ServiceBeanInstantiator
      */
     private ResourceCapability resourceCapability;
-    private final Object resourceCapabilityLock = new Object(); 
+    //private final Object resourceCapabilityLock = new Object();
     /**
      * Whether the instantiator is ready to accept requests for the
      * instantiation of dynamic services
@@ -87,9 +88,9 @@ public class InstantiatorResource {
      * Table of ServiceElement instances and how many the InstantiatorResource
      * has instantiated
      */
-    private final Map<ServiceElement, List<DeployedService>> serviceElementMap = new HashMap<ServiceElement, List<DeployedService>>();
+    private final Map<ServiceElement, List<DeployedService>> serviceElementMap = new ConcurrentHashMap<>();
     /** Table of in process ServiceElement instances */
-    private final Map<ServiceElement, Integer> inProcessMap = new HashMap<ServiceElement, Integer>();
+    private final Map<ServiceElement, Integer> inProcessMap = new ConcurrentHashMap<>();
     /**
      * Name of the ServiceBeanInstantiator
      */
@@ -98,7 +99,7 @@ public class InstantiatorResource {
      * The Uuid that has been assigned to the ServiceBeanInstantiator
      */
     private final Uuid instantiatorUuid;
-    private final List<ServiceElement> uninstantiables = new ArrayList<ServiceElement>();
+    private final List<ServiceElement> uninstantiables = new ArrayList<>();
     /** The Logger */
     private static final Logger logger = LoggerFactory.getLogger(InstantiatorResource.class);
 
@@ -121,7 +122,7 @@ public class InstantiatorResource {
                                 ServiceBeanInstantiator instantiator,
                                 String instantiatorName,
                                 Uuid instantiatorUuid,
-                                MarshalledObject handback,
+                                MarshalledObject<?> handback,
                                 ResourceCapability resourceCapability,
                                 int serviceLimit) {
         this.wrappedServiceBeanInstantiator = wrappedServiceBeanInstantiator;
@@ -144,18 +145,16 @@ public class InstantiatorResource {
      */
     public void addDeployedService(DeployedService newDeployedService) {
         ServiceElement sElem = newDeployedService.getServiceElement();
-        synchronized(serviceElementMap) {
-            if(serviceElementMap.containsKey(sElem)) {
-                List<DeployedService> list = serviceElementMap.get(sElem);
-                if(!list.contains(newDeployedService)) {
-                    list.add(newDeployedService);
-                    serviceElementMap.put(sElem, list);
-                }
-            } else {
-                List<DeployedService> list = new ArrayList<DeployedService>();
+        if (serviceElementMap.containsKey(sElem)) {
+            List<DeployedService> list = serviceElementMap.get(sElem);
+            if (!list.contains(newDeployedService)) {
                 list.add(newDeployedService);
                 serviceElementMap.put(sElem, list);
             }
+        } else {
+            List<DeployedService> list = new ArrayList<>();
+            list.add(newDeployedService);
+            serviceElementMap.put(sElem, list);
         }
     }
 
@@ -165,10 +164,8 @@ public class InstantiatorResource {
      * @param deployedServices List of active & deployed services
      */
     void setDeployedServices(List<DeployedService> deployedServices) {
-        synchronized(serviceElementMap) {
-            serviceElementMap.clear();
-        }
-        for(DeployedService deployedService : deployedServices) {
+        serviceElementMap.clear();
+        for (DeployedService deployedService : deployedServices) {
             addDeployedService(deployedService);
         }
     }
@@ -179,7 +176,7 @@ public class InstantiatorResource {
      * @return The name of the ServiceBeanInstantiator
      */
     public String getName() {
-        return(instantiatorName);
+        return instantiatorName;
     }
 
     /**
@@ -188,7 +185,7 @@ public class InstantiatorResource {
      * @return The Uuid for the ServiceBeanInstantiator
      */
     public Uuid getInstantiatorUuid() {
-        return(instantiatorUuid);
+        return instantiatorUuid;
     }
 
     /**
@@ -218,7 +215,7 @@ public class InstantiatorResource {
          */
         int RETRY = 3;
         RemoteException toThrow = null;
-        for(int i=0; i< RETRY; i++) {
+        for (int i=0; i< RETRY; i++) {
             try {
                 records = getInstantiator().getServiceRecords(ServiceRecord.ACTIVE_SERVICE_RECORD);
                 break;
@@ -232,10 +229,10 @@ public class InstantiatorResource {
                 }
             }
         }
-        if(toThrow!=null)
+        if (toThrow!=null)
             throw toThrow;
 
-        return(records);
+        return records;
     }
 
     /**
@@ -260,7 +257,7 @@ public class InstantiatorResource {
          */
         int RETRY = 3;
         RemoteException toThrow = null;
-        for(int i=0; i< RETRY; i++) {
+        for (int i=0; i< RETRY; i++) {
             try {
                 statement = getInstantiator().getServiceStatement(elem);
                 break;
@@ -274,11 +271,10 @@ public class InstantiatorResource {
                 }
             }
         }
-        if(toThrow!=null)
+        if (toThrow!=null)
             throw toThrow;
 
-        return(statement==null?
-               new ServiceRecord[0] : statement.getServiceRecords());
+        return statement == null ? new ServiceRecord[0] : statement.getServiceRecords();
     }
 
     /**
@@ -291,20 +287,17 @@ public class InstantiatorResource {
      */
     boolean hasServiceElementInstance(ServiceElement sElem, Uuid uuid) {
         boolean found = false;
-        synchronized(serviceElementMap) {
-            if(serviceElementMap.containsKey(sElem)) {
-                List<DeployedService> list = serviceElementMap.get(sElem);
-                DeployedService[] ids =
-                    list.toArray(new DeployedService[list.size()]);
-                for (DeployedService deployedService : ids) {
-                    if (deployedService.getServiceBeanInstance().getServiceBeanID().equals(uuid)) {
-                        found = true;
-                        break;
-                    }
+        if (serviceElementMap.containsKey(sElem)) {
+            List<DeployedService> list = serviceElementMap.get(sElem);
+            DeployedService[] ids = list.toArray(new DeployedService[0]);
+            for (DeployedService deployedService : ids) {
+                if (deployedService.getServiceBeanInstance().getServiceBeanID().equals(uuid)) {
+                    found = true;
+                    break;
                 }
             }
         }
-        return(found);
+        return found;
     }
 
     /**
@@ -320,39 +313,33 @@ public class InstantiatorResource {
      */
     ServiceBeanInstance removeServiceElementInstance(ServiceElement sElem, Uuid uuid) {
         ServiceBeanInstance removedInstance = null;
-        synchronized(serviceElementMap) {
-            if(serviceElementMap.containsKey(sElem)) {
-                List<DeployedService> list = serviceElementMap.get(sElem);
-                DeployedService[] ids =
-                    list.toArray(new DeployedService[list.size()]);
-                for (DeployedService deployedService : ids) {
-                    if (deployedService.getServiceBeanInstance().getServiceBeanID().equals(uuid)) {
-                        list.remove(deployedService);
-                        removedInstance = deployedService.getServiceBeanInstance();
-                        break;
-                    }
+        if (serviceElementMap.containsKey(sElem)) {
+            List<DeployedService> list = serviceElementMap.get(sElem);
+            list.removeIf(Objects::isNull);
+            for (DeployedService deployedService : list) {
+                if (deployedService.getServiceBeanInstance() != null
+                        && deployedService.getServiceBeanInstance().getServiceBeanID().equals(uuid)) {
+                    list.remove(deployedService);
+                    removedInstance = deployedService.getServiceBeanInstance();
+                    break;
                 }
-                if(list.isEmpty()) {
-                    serviceElementMap.remove(sElem);
-                } else {
-                    serviceElementMap.put(sElem, list);
-                }
+            }
+            if (list.isEmpty()) {
+                serviceElementMap.remove(sElem);
+            } else {
+                serviceElementMap.put(sElem, list);
             }
         }
         return removedInstance;
     }
 
     ServiceElement[] getServiceElements() {
-        ServiceElement[] elems;
-        synchronized(serviceElementMap) {
-            elems = new ServiceElement[serviceElementMap.size()];
-            int i=0;
-            for (Map.Entry<ServiceElement, List<DeployedService>> entry :
-                serviceElementMap.entrySet()) {
-                elems[i++] = entry.getKey();
-            }
+        ServiceElement[] elems = new ServiceElement[serviceElementMap.size()];
+        int i=0;
+        for (Map.Entry<ServiceElement, List<DeployedService>> entry : serviceElementMap.entrySet()) {
+            elems[i++] = entry.getKey();
         }
-        return(elems);
+        return elems;
     }
 
     /**
@@ -365,15 +352,27 @@ public class InstantiatorResource {
      */
     public int getServiceElementCount(ServiceElement sElem) {
         int numInstances = 0;
-        synchronized(serviceElementMap) {
-            if(serviceElementMap.containsKey(sElem)) {
-                List<DeployedService> list = serviceElementMap.get(sElem);
-                numInstances = list.size();
-            }
-            logger.trace("Get service element count for [{}], {} has {} instances",
-                         LoggingUtil.getLoggingName(sElem), getName(), numInstances);
+        if (serviceElementMap.containsKey(sElem)) {
+            List<DeployedService> list = serviceElementMap.get(sElem);
+            numInstances = list.size();
         }
-        return (numInstances);
+        try {
+            ServiceBeanInstance[] instances = instantiator.getServiceBeanInstances(sElem);
+            if (numInstances != instances.length) {
+                logger.warn("Discrepancy in instances for [{}], recorded: {}, actual: {}",
+                            LoggingUtil.getLoggingName(sElem), numInstances, instances.length);
+                numInstances = instances.length;
+                serviceElementMap.remove(sElem);
+                for (ServiceBeanInstance instance : instances) {
+                    addDeployedService(new DeployedService(sElem, instance, null));
+                }
+            }
+        } catch (IOException e) {
+            logger.warn("Issue communicating to [{}]", LoggingUtil.getLoggingName(sElem), e);
+        }
+        logger.trace("Get service element count for [{}], {} has {} instances",
+                     LoggingUtil.getLoggingName(sElem), getName(), numInstances);
+        return numInstances;
     }
 
     /**
@@ -384,12 +383,10 @@ public class InstantiatorResource {
      */
     public int getServiceElementCount() {
         int totalInstances = 0;
-        synchronized(serviceElementMap) {
-            Set<ServiceElement> keys = serviceElementMap.keySet();
-            for (ServiceElement key : keys) {
-                List<DeployedService> list = serviceElementMap.get(key);
-                totalInstances += list.size();
-            }
+        Set<ServiceElement> keys = serviceElementMap.keySet();
+        for (ServiceElement key : keys) {
+            List<DeployedService> list = serviceElementMap.get(key);
+            totalInstances += list.size();
         }
         return totalInstances;
     }
@@ -400,7 +397,7 @@ public class InstantiatorResource {
      * @return The Instantiator
      */
     public ServiceBeanInstantiator getInstantiator() {
-        return (instantiator);
+        return instantiator;
     }
 
     /**
@@ -419,8 +416,8 @@ public class InstantiatorResource {
      * 
      * @return The handback object
      */
-    public MarshalledObject getHandback() {
-        return (handback);
+    public MarshalledObject<?> getHandback() {
+        return handback;
     }
 
     /**
@@ -433,16 +430,13 @@ public class InstantiatorResource {
      */
     DeployedService getServiceDeployment(ServiceElement sElem, ServiceBeanInstance instance) {
         DeployedService deployedService = null;
-        synchronized(serviceElementMap) {
-            if(serviceElementMap.containsKey(sElem)) {
-                List<DeployedService> list = serviceElementMap.get(sElem);
-                DeployedService[] services =
-                    list.toArray(new DeployedService[list.size()]);
-                for (DeployedService service : services) {
-                    if (service.getServiceBeanInstance().equals(instance)) {
-                        deployedService = service;
-                        break;
-                    }
+        if (serviceElementMap.containsKey(sElem)) {
+            List<DeployedService> list = serviceElementMap.get(sElem);
+            DeployedService[] services = list.toArray(new DeployedService[0]);
+            for (DeployedService service : services) {
+                if (service.getServiceBeanInstance().equals(instance)) {
+                    deployedService = service;
+                    break;
                 }
             }
         }
@@ -454,11 +448,7 @@ public class InstantiatorResource {
      * @return The ResourceCapability of the ServiceBeanInstantiator
      */
     public ResourceCapability getResourceCapability() {
-        ResourceCapability rCap;
-        synchronized(resourceCapabilityLock) {
-            rCap = resourceCapability;
-        }
-        return (rCap);
+        return resourceCapability;
     }
 
     /**
@@ -468,9 +458,7 @@ public class InstantiatorResource {
      * ServiceBeanInstantiator
      */
     void setResourceCapability(ResourceCapability resourceCapability) {
-        synchronized(resourceCapabilityLock) {
-            this.resourceCapability = resourceCapability;
-        }
+        this.resourceCapability = resourceCapability;
     }
 
     /**
@@ -498,14 +486,12 @@ public class InstantiatorResource {
      */
     public void incrementProvisionCounter(ServiceElement sElem) {
         inProcessCounter.incrementAndGet();
-        synchronized(inProcessMap) {
-            if(inProcessMap.containsKey(sElem)) {
-                int i = inProcessMap.get(sElem);
-                i++;
-                inProcessMap.put(sElem, i);
-            } else {
-                inProcessMap.put(sElem, 1);
-            }
+        if (inProcessMap.containsKey(sElem)) {
+            int i = inProcessMap.get(sElem);
+            i++;
+            inProcessMap.put(sElem, i);
+        } else {
+            inProcessMap.put(sElem, 1);
         }
     }
     /**
@@ -514,18 +500,16 @@ public class InstantiatorResource {
       * @param sElem The ServiceElement to remove
      */
     public synchronized void decrementProvisionCounter(ServiceElement sElem) {
-        if(inProcessCounter.get()>0) {
+        if (inProcessCounter.get()>0) {
             inProcessCounter.decrementAndGet();
         }
-        synchronized(inProcessMap) {
-            if(inProcessMap.containsKey(sElem)) {
-                int i = inProcessMap.get(sElem);
-                i--;
-                if(i==0)
-                    inProcessMap.remove(sElem);
-                else
-                    inProcessMap.put(sElem, i);
-            }
+        if (inProcessMap.containsKey(sElem)) {
+            int i = inProcessMap.get(sElem);
+            i--;
+            if (i==0)
+                inProcessMap.remove(sElem);
+            else
+                inProcessMap.put(sElem, i);
         }
     }
 
@@ -547,12 +531,10 @@ public class InstantiatorResource {
      */
     public int getInProcessCounter(ServiceElement sElem) {
         int count = 0;
-        synchronized(inProcessMap) {
-            if(inProcessMap.containsKey(sElem)) {
-                count = inProcessMap.get(sElem);
-            }
+        if (inProcessMap.containsKey(sElem)) {
+            count = inProcessMap.get(sElem);
         }
-        return(count);
+        return count;
     }
 
     /**
@@ -563,15 +545,13 @@ public class InstantiatorResource {
      * @return An array of ServiceElements
      */
     ServiceElement[] getServiceElementsInprocess(ServiceElement exclude) {
-        ArrayList<ServiceElement> list = new ArrayList<ServiceElement>();
-        synchronized(inProcessMap) {
-            Set<ServiceElement> keys = inProcessMap.keySet();
-            for (ServiceElement element : keys) {
-                if (!element.equals(exclude))
-                    list.add(element);
-            }
+        ArrayList<ServiceElement> list = new ArrayList<>();
+        Set<ServiceElement> keys = inProcessMap.keySet();
+        for (ServiceElement element : keys) {
+            if (!element.equals(exclude))
+                list.add(element);
         }
-        return (list.toArray(new ServiceElement[list.size()]));
+        return list.toArray(new ServiceElement[0]);
     }
 
     /**
@@ -621,7 +601,7 @@ public class InstantiatorResource {
      * type of <i>dynamic </i>, otherwise return <code>false</code>
      */
     public boolean getDynamicEnabled() {
-        return (dynamicEnabled);
+        return dynamicEnabled;
     }
 
     /**
@@ -640,14 +620,15 @@ public class InstantiatorResource {
      */
     public boolean canProvision(final ProvisionRequest provisionRequest) throws ProvisionException {
         ServiceElement sElem = provisionRequest.getServiceElement();
-        if(sElem.getPlanned()==0)
-            return(false);
+        if (sElem.getPlanned() == 0) {
+            return false;
+        }
 
         String provType = sElem.getProvisionType().toString();
         /*
          * Check if the serviceLimit has been reached
          */
-        if(getServiceElementCount() == serviceLimit.get() &&
+        if (getServiceElementCount() == serviceLimit.get() &&
            !provType.equals(ServiceElement.ProvisionType.FIXED.toString())) {
             String failureReason =
                 String.format("%s not selected to allocate service [%s], it has reached it's service limit of [%d]",
@@ -655,23 +636,23 @@ public class InstantiatorResource {
 
             provisionRequest.addFailureReason(failureReason);
             logger.debug(failureReason);
-            return(false);
+            return false;
         }
 
         /*
          * Check if the maximum amount per machine has been reached
          */
-        if(sElem.getMaxPerMachine()!=-1) {
+        if (sElem.getMaxPerMachine()!=-1) {
             int serviceCount = getServiceElementCount(sElem);
             int inProcessCount = getInProcessCounter(sElem);
             int numInstances = serviceCount+inProcessCount;
-            if(numInstances >= sElem.getMaxPerMachine()) {
+            if (numInstances >= sElem.getMaxPerMachine()) {
                 String failureReason =
                     String.format("%s not selected to allocate service [%s], declaration specifies no more than %d services per machine, found %d",
                                   getName(), LoggingUtil.getLoggingName(sElem), sElem.getMaxPerMachine(), numInstances);
                 provisionRequest.addFailureReason(failureReason);
                 logger.debug(failureReason);
-                return(false);
+                return false;
             }
         }
 
@@ -679,17 +660,17 @@ public class InstantiatorResource {
          * Fixed service allocation is similar to maxPerMachine, ensure that
          * there are not too many service allocated
          */
-        if(sElem.getProvisionType() == ServiceElement.ProvisionType.FIXED) {
+        if (sElem.getProvisionType() == ServiceElement.ProvisionType.FIXED) {
             int planned = sElem.getPlanned();
             int actual = getServiceElementCount(sElem)+getInProcessCounter(sElem);
             int numAllowed = planned-actual;
-            if(numAllowed <=0) {
+            if (numAllowed <= 0) {
                 String failureReason =
                     String.format("Do not allocate %s service [%s] to %s has [%d] instance(s), planned [%d]",
                                   provType, LoggingUtil.getLoggingName(sElem), getName(), actual, planned);
                 provisionRequest.addFailureReason(failureReason);
                 logger.debug(failureReason);
-                return(false);
+                return false;
             } else {
                 String failureReason =
                     String.format("%s has [%d] instance(s), planned [%d] of %s service [%s]",
@@ -699,7 +680,7 @@ public class InstantiatorResource {
             }
         }
 
-        if(!AssociationMatcher.meetsColocationRequirements(sElem, this)) {
+        if (!AssociationMatcher.meetsColocationRequirements(sElem, this)) {
             StringBuilder b = new StringBuilder();
             b.append(getName()).append(" not selected to allocate ").append(LoggingUtil.getLoggingName(sElem));
             b.append(", required colocated services not present: ");
@@ -714,17 +695,17 @@ public class InstantiatorResource {
             String failureReason = b.toString();
             provisionRequest.addFailureReason(failureReason);
             logger.debug(failureReason);
-            return (false);
+            return false;
         }
 
-        if(!AssociationMatcher.meetsOpposedRequirements(sElem, this)) {
+        if (!AssociationMatcher.meetsOpposedRequirements(sElem, this)) {
             String failureReason = AssociationMatcher.getLastErrorMessage();
             provisionRequest.addFailureReason(failureReason);
             logger.debug(failureReason);
-            return (false);
+            return  false;
         }
 
-        if(!resourceCapability.measuredResourcesWithinRange()) {
+        if (!resourceCapability.measuredResourcesWithinRange()) {
             StringBuilder buffer = new StringBuilder();
             MeasuredResource[] m = resourceCapability.getMeasuredResources(ResourceCapability.MEASURED_RESOURCES_BREACHED);
             for (MeasuredResource aM : m) {
@@ -740,13 +721,13 @@ public class InstantiatorResource {
                               getName(), LoggingUtil.getLoggingName(sElem), buffer.toString());
             provisionRequest.addFailureReason(failureReason);
             logger.debug(failureReason);
-            return(false);
+            return false;
         }
-        if(meetsGeneralRequirements(provisionRequest) && meetsQuantitativeRequirements(provisionRequest)) {
+        if (meetsGeneralRequirements(provisionRequest) && meetsQuantitativeRequirements(provisionRequest)) {
             Collection<SystemComponent> unsupportedReqs = meetsQualitativeRequirements(provisionRequest);
-            if(unsupportedReqs.isEmpty()) {
+            if (unsupportedReqs.isEmpty()) {
                 logger.debug("{} meets qualitative requirements for [{}]", getName(), LoggingUtil.getLoggingName(sElem));
-                return (true);
+                return true;
             } else {
                 /* Create a String representation of the unsupportedReqs
                  * object for logging */
@@ -762,7 +743,7 @@ public class InstantiatorResource {
                 logger.debug("{} does not meet requirements for {} service [{}]",
                              getName(), provType, LoggingUtil.getLoggingName(sElem));
                 /* Determine if the resource supports persistent provisioning */
-                if(!resourceCapability.supportsPersistentProvisioning()) {
+                if (!resourceCapability.supportsPersistentProvisioning()) {
                     String failureReason =
                         String.format("Cannot allocate %s service [%s] to %s, required SystemComponents cannot be " +
                                       "provisioned. This is because the %s is not configured for persistentProvisioning. " +
@@ -771,7 +752,7 @@ public class InstantiatorResource {
                                       provType, LoggingUtil.getLoggingName(sElem), getName(), getName(), getName());
                     provisionRequest.addFailureReason(failureReason);
                     logger.debug(failureReason);
-                    return (false);
+                    return false;
                 }
                 /*
                  * Check if the unsupported PlatformCapability objects can be
@@ -785,37 +766,35 @@ public class InstantiatorResource {
                         break;
                     }
                 }
-                if(!provisionableCaps) {
-                    StringBuilder message = new StringBuilder();
-                    message.append(getName()).append(" does not meet requirements for ");
-                    message.append(provType).append(" service ");
-                    message.append("[").append(LoggingUtil.getLoggingName(sElem)).append("] ");
-                    message.append(unsupportedReqsString);
-                    String failureReason = message.toString();
+                if (!provisionableCaps) {
+                    String failureReason = getName() + " does not meet requirements for " +
+                            provType + " service " +
+                            "[" + LoggingUtil.getLoggingName(sElem) + "] " +
+                            unsupportedReqsString;
                     provisionRequest.addFailureReason(failureReason);
                     logger.warn(failureReason);
-                    return (false);
+                    return false;
                 }
                 /* Get the size of the download(s) */
-                int requiredSize = 0;
+                long requiredSize = 0;
                 IOException failed = null;
                 try {
                     for (SystemComponent sysReq : unsupportedReqs) {
                         StagedSoftware download = sysReq.getStagedSoftware();
-                        if(download!=null) {
-                            int size = download.getDownloadSize();
-                            if(size < 0) {
-                                logger.warn("Unable to obtain download size for {}, abort provision request",
-                                            download.getLocation());
+                        if (download != null) {
+                            long size = download.getDownloadSize();
+                            if (size < 0) {
+                                logger.warn("Unable to obtain download size for {}, received {}, abort provision request",
+                                            download.getLocation(), size);
                                 requiredSize = size;
                                 break;
                             }
                             requiredSize += size;
-                            if(download.getPostInstallAttributes() != null &&
+                            if (download.getPostInstallAttributes() != null &&
                                download.getPostInstallAttributes().getStagedData() != null) {
                                 StagedData postInstall = download.getPostInstallAttributes().getStagedData();
                                 size = postInstall.getDownloadSize();
-                                if(size < 0) {
+                                if (size < 0) {
                                     logger.warn("Unable to obtain download size for PostInstall {}, abort provision request",
                                                 postInstall.getLocation());
                                     requiredSize = size;
@@ -829,24 +808,24 @@ public class InstantiatorResource {
                     failed = e;
                 }
 
-                if (requiredSize < 0 || failed!=null)
+                if (requiredSize < 0 || failed != null)
                     throw new ProvisionException("Service ["+LoggingUtil.getLoggingName(sElem)+"] "+
                                                  "instantiation failed",
-                                                 failed==null?
+                                                 failed == null?
                                                  new IOException("Unable to obtain download size"):failed,
                                                  true);
                 /* Find out if the resource has the necessary disk-space */
-                if(supportsStorageRequirement(requiredSize, resourceCapability.getPlatformCapabilities())) {
+                if (supportsStorageRequirement(requiredSize, resourceCapability.getPlatformCapabilities())) {
                     logger.debug("{} supports provisioning requirements for {} service [{}]",
                                  getName(), provType, LoggingUtil.getLoggingName(sElem));
 
                     sElem.setProvisionablePlatformCapabilities(unsupportedReqs);
-                    return (true);
+                    return true;
                 }
                 double avail = getAvailableStorage(resourceCapability.getPlatformCapabilities());
                 StringBuilder sb = new StringBuilder();
                 sb.append(getName()).append(" ");
-                if(avail>0) {
+                if (avail>0) {
                     /* For logging purposes compute the size in GB */
                     double GB = Math.pow(1024, 3);
                     avail = avail/GB;
@@ -874,14 +853,14 @@ public class InstantiatorResource {
                 String failureReason = sb.toString();
                 provisionRequest.addFailureReason(failureReason);
                 logger.warn(failureReason);
-                return (false);
+                return false;
             }
         } else {
             String failureReason =
                 String.format("%s does not meet general or quantitative requirements for %s service [%s]",
                               getName(), provType, LoggingUtil.getLoggingName(sElem));
             logger.debug(failureReason);
-            return (false);
+            return false;
         }
     }
 
@@ -896,7 +875,7 @@ public class InstantiatorResource {
      * components contains a StorageCapability and if that StorageCapability has
      * the requested disk space size available
      */
-    private boolean supportsStorageRequirement(int requestedSize, PlatformCapability[] pCaps) {
+    private boolean supportsStorageRequirement(long requestedSize, PlatformCapability[] pCaps) {
         boolean supports = false;
         for (PlatformCapability pCap : pCaps) {
             if (pCap instanceof StorageCapability) {
@@ -905,7 +884,7 @@ public class InstantiatorResource {
                 break;
             }
         }
-        return (supports);
+        return supports;
     }
 
     /**
@@ -928,7 +907,7 @@ public class InstantiatorResource {
                 break;
             }
         }
-        return(available);
+        return available;
     }
 
     /**
@@ -953,7 +932,7 @@ public class InstantiatorResource {
          */
         ServiceElement sElem = provisionRequest.getServiceElement();
         String[] machineCluster = sElem.getCluster();
-        if(machineCluster != null && machineCluster.length > 0) {
+        if (machineCluster != null && machineCluster.length > 0) {
             logger.debug("ServiceBean [{}] has a cluster requirement", LoggingUtil.getLoggingName(sElem));
             boolean found = false;
             for (String aMachineCluster : machineCluster) {
@@ -961,10 +940,10 @@ public class InstantiatorResource {
                     aMachineCluster.equalsIgnoreCase(resourceCapability.getHostName()))
                     found = true;
             }
-            if(!found) {
+            if (!found) {
                 StringBuilder builder = new StringBuilder();
-                for(String m : machineCluster) {
-                    if(builder.length()>0)
+                for (String m : machineCluster) {
+                    if (builder.length()>0)
                         builder.append(", ");
                     builder.append(m);
                 }
@@ -974,10 +953,10 @@ public class InstantiatorResource {
                                                      LoggingUtil.getLoggingName(sElem));
                 provisionRequest.addFailureReason(failureReason);
                 logger.debug(failureReason);
-                return (false);
+                return false;
             }
         }
-        return (true);
+        return true;
     }
 
     /**
@@ -994,27 +973,27 @@ public class InstantiatorResource {
         ServiceElement sElem = request.getServiceElement();
         ServiceLevelAgreements sla = sElem.getServiceLevelAgreements();
         SystemComponent[] serviceRequirements = sla.getSystemRequirements().getSystemComponents();
-        List<SystemComponent> unsupportedRequirements = new ArrayList<SystemComponent>();
+        List<SystemComponent> unsupportedRequirements = new ArrayList<>();
         /*
          * If there are no PlatformCapability requirements we can return
          * successfully
          */
-        if(serviceRequirements.length == 0)
+        if (serviceRequirements.length == 0)
             return unsupportedRequirements;
 
         PlatformCapability[] platformCapabilities = resourceCapability.getPlatformCapabilities();
 
-        List<SystemComponent> operatingSystems = new ArrayList<SystemComponent>();
-        List<SystemComponent> architectures = new ArrayList<SystemComponent>();
-        List<SystemComponent> machineAddresses = new ArrayList<SystemComponent>();
-        List<SystemComponent> remaining = new ArrayList<SystemComponent>();
+        List<SystemComponent> operatingSystems = new ArrayList<>();
+        List<SystemComponent> architectures = new ArrayList<>();
+        List<SystemComponent> machineAddresses = new ArrayList<>();
+        List<SystemComponent> remaining = new ArrayList<>();
 
         for (SystemComponent serviceRequirement : serviceRequirements) {
-            if(isOperatingSystem(serviceRequirement)) {
+            if (isOperatingSystem(serviceRequirement)) {
                 operatingSystems.add(serviceRequirement);
-            } else if(isArchitecture(serviceRequirement)) {
+            } else if (isArchitecture(serviceRequirement)) {
                 architectures.add(serviceRequirement);
-            } else if(isMachineAddress(serviceRequirement)) {
+            } else if (isMachineAddress(serviceRequirement)) {
                 machineAddresses.add(serviceRequirement);
             } else {
                 remaining.add(serviceRequirement);
@@ -1024,7 +1003,7 @@ public class InstantiatorResource {
         /*
          * Check if we have a match in one of the sought after architectures
          */
-        if(!architectures.isEmpty()) {
+        if (!architectures.isEmpty()) {
             ProcessorArchitecture architecture = getArchitecture();
             Result result = check(architecture, architectures);
             if (!result.supported) {
@@ -1034,7 +1013,7 @@ public class InstantiatorResource {
                                                            sElem,
                                                            result.excluded.isEmpty(),
                                                            ProcessorArchitecture.ARCHITECTURE);
-                if(logger.isWarnEnabled()) {
+                if (logger.isWarnEnabled()) {
                     logger.warn(failureReason);
                 }
                 request.addFailureReason(failureReason);
@@ -1046,7 +1025,7 @@ public class InstantiatorResource {
         /*
          * Check if we have a match in one of the sought after operating systems
          */
-        if(!operatingSystems.isEmpty()) {
+        if (!operatingSystems.isEmpty()) {
             OperatingSystem operatingSystem = getOperatingSystem();
             Result result = check(operatingSystem, operatingSystems);
             if (!result.supported) {
@@ -1056,7 +1035,7 @@ public class InstantiatorResource {
                                                            sElem,
                                                            result.excluded.isEmpty(),
                                                            OperatingSystem.NAME);
-                if(logger.isWarnEnabled()) {
+                if (logger.isWarnEnabled()) {
                     logger.warn(failureReason);
                 }
                 request.addFailureReason(failureReason);
@@ -1067,14 +1046,14 @@ public class InstantiatorResource {
         /*
          * Check if we have a match in one of the sought after machine addresses
          */
-        if(!machineAddresses.isEmpty()) {
+        if (!machineAddresses.isEmpty()) {
             TCPConnectivity tcpConnectivity = getTCPConnectivity();
             Result result = check(tcpConnectivity, machineAddresses);
             if (!result.supported) {
                 String formattedComponents = formatSystemComponents(machineAddresses,
                                                                     TCPConnectivity.HOST_NAME, TCPConnectivity.HOST_ADDRESS);
                 String failureReason;
-                if(result.excluded.isEmpty()) {
+                if (result.excluded.isEmpty()) {
                     failureReason = String.format("The machine addresses being requested [%s] do not match the " +
                                                   "target resource's machine name/ip [%s/%s] for [%s]",
                                                   formattedComponents,
@@ -1088,7 +1067,7 @@ public class InstantiatorResource {
                                                   formattedComponents,
                                                   LoggingUtil.getLoggingName(sElem));
                 }
-                if(logger.isWarnEnabled()) {
+                if (logger.isWarnEnabled()) {
                     logger.warn(failureReason);
                 }
                 request.addFailureReason(failureReason);
@@ -1109,7 +1088,7 @@ public class InstantiatorResource {
              */
             for (PlatformCapability platformCapability : platformCapabilities) {
                 if (platformCapability.supports(serviceRequirement)) {
-                    if(serviceRequirement.exclude()) {
+                    if (serviceRequirement.exclude()) {
                         continue;
                     }
                     supported = true;
@@ -1128,16 +1107,15 @@ public class InstantiatorResource {
         Result result = new Result();
         boolean supported = false;
         for (SystemComponent serviceRequirement : systemComponents) {
-            if(serviceRequirement.exclude()) {
-                if(platformCapability.supports(serviceRequirement)) {
+            if (serviceRequirement.exclude()) {
+                if (platformCapability.supports(serviceRequirement)) {
                     result.excluded.add(serviceRequirement);
-                    break;
                 } else {
                     supported = true;
-                    break;
                 }
+                break;
             } else {
-                if(platformCapability.supports(serviceRequirement)) {
+                if (platformCapability.supports(serviceRequirement)) {
                     supported = true;
                     break;
                 }
@@ -1148,19 +1126,19 @@ public class InstantiatorResource {
         return result;
     }
 
-    private class Result {
+    private static class Result {
         boolean supported;
-        List<SystemComponent> excluded = new ArrayList<SystemComponent>();
+        List<SystemComponent> excluded = new ArrayList<>();
     }
 
     private String formatSystemComponents(final List<SystemComponent> systemComponents, final String... keys) {
         StringBuilder builder = new StringBuilder();
-        for(String key : keys) {
+        for (String key : keys) {
             for (SystemComponent serviceRequirement : systemComponents) {
-                if(builder.length()>0)
+                if (builder.length()>0)
                     builder.append(", ");
                 String value = (String) serviceRequirement.getAttributes().get(key);
-                if(value!=null)
+                if (value!=null)
                     builder.append(value);
             }
         }
@@ -1176,7 +1154,7 @@ public class InstantiatorResource {
 
         String formattedComponents = formatSystemComponents(systemComponents, keys);
         String failureReason;
-        if(notExcluded) {
+        if (notExcluded) {
             failureReason = String.format("The %ss being requested [%s] are not supported by the " +
                                           "target resource's %s [%s] for [%s]",
                                           name,
@@ -1197,7 +1175,7 @@ public class InstantiatorResource {
     private boolean isOperatingSystem(SystemComponent systemComponent) {
         String name = systemComponent.getName();
         String className = systemComponent.getClassName();
-        if(className==null) {
+        if (className==null) {
             return name.equals(OperatingSystem.ID);
         }
         return systemComponent.getClassName().equals(OperatingSystem.class.getName());
@@ -1206,7 +1184,7 @@ public class InstantiatorResource {
     private boolean isArchitecture(SystemComponent systemComponent) {
         String name = systemComponent.getName();
         String className = systemComponent.getClassName();
-        if(className==null) {
+        if (className==null) {
             return name.equals(ProcessorArchitecture.ID);
         }
         return systemComponent.getClassName().equals(ProcessorArchitecture.class.getName());
@@ -1215,21 +1193,20 @@ public class InstantiatorResource {
     private boolean isMachineAddress(SystemComponent systemComponent) {
         String name = systemComponent.getName();
         String className = systemComponent.getClassName();
-        if(className==null) {
+        if (className==null) {
             return name.equals(TCPConnectivity.ID);
         }
         return systemComponent.getClassName().equals(TCPConnectivity.class.getName());
     }
 
-    boolean isHardwareRelated(SystemComponent systemComponent) {
+    /*boolean isHardwareRelated(SystemComponent systemComponent) {
         return isArchitecture(systemComponent) || isOperatingSystem(systemComponent) || isMachineAddress(systemComponent);
-
-    }
+    }*/
 
     private ProcessorArchitecture getArchitecture () {
         ProcessorArchitecture architecture = null;
         for (PlatformCapability platformCapability : resourceCapability.getPlatformCapabilities()) {
-            if(platformCapability instanceof ProcessorArchitecture) {
+            if (platformCapability instanceof ProcessorArchitecture) {
                 architecture = (ProcessorArchitecture) platformCapability;
                 break;
             }
@@ -1240,7 +1217,7 @@ public class InstantiatorResource {
     private OperatingSystem getOperatingSystem () {
         OperatingSystem operatingSystem = null;
         for (PlatformCapability platformCapability : resourceCapability.getPlatformCapabilities()) {
-            if(platformCapability instanceof OperatingSystem) {
+            if (platformCapability instanceof OperatingSystem) {
                 operatingSystem = (OperatingSystem) platformCapability;
                 break;
             }
@@ -1251,7 +1228,7 @@ public class InstantiatorResource {
     private TCPConnectivity getTCPConnectivity () {
         TCPConnectivity tcpConnectivity = null;
         for (PlatformCapability platformCapability : resourceCapability.getPlatformCapabilities()) {
-            if(platformCapability instanceof TCPConnectivity) {
+            if (platformCapability instanceof TCPConnectivity) {
                 tcpConnectivity = (TCPConnectivity) platformCapability;
                 break;
             }
@@ -1272,17 +1249,17 @@ public class InstantiatorResource {
         ServiceLevelAgreements sla = sElem.getServiceLevelAgreements();
         boolean provisionable = true;
         String[] systemThresholdIDs = sla.getSystemRequirements().getSystemThresholdIDs();
-        if(systemThresholdIDs.length == 0)
+        if (systemThresholdIDs.length == 0)
             return (true);
         MeasuredResource[] measured = resourceCapability.getMeasuredResources();
         /*
          * If the number of MeasuredCapabilities is less then what we are asking
          * for there is no reason to continue
          */
-        if(measured == null || measured.length < systemThresholdIDs.length) {
+        if (measured == null || measured.length < systemThresholdIDs.length) {
             StringBuilder message = new StringBuilder();
             message.append(getName()).append(" ");
-            if(measured==null) {
+            if (measured==null) {
                 message.append("has a [null] MeasuredCapability instance, ServiceBean [");
                 message.append(LoggingUtil.getLoggingName(sElem)).append("] ");
                 message.append("has a requirement to test ").append(systemThresholdIDs.length);
@@ -1293,7 +1270,7 @@ public class InstantiatorResource {
             }
             provisionRequest.addFailureReason(message.toString());
             logger.debug(message.toString());
-            return (false);
+            return false;
         }
         /*
          * Check each of the MeasuredResource objects
@@ -1328,7 +1305,7 @@ public class InstantiatorResource {
                 if (mRes.getIdentifier().equals(systemThresholdID)) {
                     if (mRes.evaluate(systemThreshold)) {
                         supported = true;
-                        logger.debug("{} meets [{}] utilization requirement. Desired Low: {}, High: {}, Actual: {}",getName(),
+                        logger.debug("{} meets [{}] utilization requirement. Desired Low: {}, High: {}, Actual: {}",
                                      getName(),
                                      systemThresholdID,
                                      systemThreshold.getLowThreshold(),

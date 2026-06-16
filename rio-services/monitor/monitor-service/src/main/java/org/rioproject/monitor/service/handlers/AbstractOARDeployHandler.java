@@ -1,12 +1,12 @@
 /*
  * Copyright to the original author or authors.
- *
+ * 
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
+ * 
+ *         http://www.apache.org/licenses/LICENSE-2.0
+ * 
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -51,7 +51,7 @@ public abstract class AbstractOARDeployHandler implements DeployHandler {
     }
 
     public List<OperationalString> listOfOperationalStrings() {
-        List<OperationalString> list = new ArrayList<OperationalString>();
+        List<OperationalString> list = new ArrayList<>();
         if (opStringLoader != null) {
             list.addAll(look(new Date(0)));
         } else {
@@ -63,7 +63,7 @@ public abstract class AbstractOARDeployHandler implements DeployHandler {
     public List<OperationalString> listOfOperationalStrings(Date fromDate) {
         if (fromDate == null)
             throw new IllegalArgumentException("the fromDate must not be null");
-        List<OperationalString> list = new ArrayList<OperationalString>();
+        List<OperationalString> list = new ArrayList<>();
         if (opStringLoader != null) {
             list.addAll(look(fromDate));
         } else {
@@ -73,7 +73,7 @@ public abstract class AbstractOARDeployHandler implements DeployHandler {
     }
 
     protected List<OperationalString> parseOAR(OAR oar, Date from) {
-        List<OperationalString> list = new ArrayList<OperationalString>();
+        List<OperationalString> list = new ArrayList<>();
         File dir = new File(oar.getDeployDir());
         File opstringFile = OARUtil.find(oar.getOpStringName(), dir);
         if (opstringFile != null) {
@@ -85,13 +85,13 @@ public abstract class AbstractOARDeployHandler implements DeployHandler {
                         ((OpString) opString).setLoadedFrom(oar.getURL());
                         try {
                             Collection<RemoteRepository> r = oar.getRepositories();
-                            RemoteRepository[] repositories = r.toArray(new RemoteRepository[r.size()]);
+                            RemoteRepository[] repositories = r.toArray(new RemoteRepository[0]);
                             deploymentVerifier.verifyOperationalString(opString, repositories);
                             list.add(opString);
                         } catch(IOException e) {
                             logger.warn("Unable to resolve codebase for services " +
                                         "in ["+opString.getName()+"] using codebase "+
-                                        System.getProperty(Constants.CODESERVER)+
+                                        System.getProperty(Constants.WEBSTER)+
                                         ". Make sure that the codeserver is set " +
                                         "up correctly to serve the service's " +
                                         "jars, also make sure you have published " +

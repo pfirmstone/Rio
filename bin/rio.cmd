@@ -28,8 +28,12 @@ set SLF4J_CLASSPATH="%RIO_HOME%\lib\logging\*";"%RIO_HOME%\config\logging"
 set RIO_LIB=%RIO_HOME%\lib
 
 :: Set Versions
-set rioVersion=5.7
-set groovyVersion=2.3.8
+set rioVersion=@rioV@
+set groovyVersion=@groovyV@
+set riverVersion=@riverV@
+
+set logbackConfig="%RIO_HOME%\config\logging\logback.groovy"
+set loggingConfig="%RIO_HOME%\config\logging\logging.properties"
 
 if "%JAVA_HOME%" == "" goto noJavaHome
 if not exist "%JAVA_HOME%\bin\java.exe" goto noJavaHome
@@ -45,7 +49,6 @@ if "%JAVA_MEM_OPTIONS%" == "" set JAVA_MEM_OPTIONS="-XX:MaxPermSize=256m"
 :: Parse command line
 if "%1"=="" goto interactive
 if "%1"=="start" goto start
-if "%1"=="create-project" goto create-project
 
 :interactive
 :: set cliExt="%RIO_HOME%"\config\rio_cli.groovy
@@ -60,12 +63,9 @@ set secProps="-Djava.security.policy="%RIO_HOME%"\policy\policy.all"
 set serialFilter="org.rioproject.**;net.jini.**;com.sun.**"
 set serialProps="-Djdk.serialFilter=%serialFilter% -Dsun.rmi.registry.registryFilter=%serialFilter% -Dsun.rmi.transport.dgcFilter=%serialFilter%"
 set ipv4="-Djava.net.preferIPv4Stack=true"
+::set keystore="-Dorg.rioproject.keystore="%RIO_HOME%"\config\security\rio-cert.ks"
 
 "%JAVACMD%" %classpath% -Xms256m -Xmx256m -Djava.protocol.handler.pkgs=org.rioproject.url -Drio.home="%RIO_HOME%" %urlProp% %rmiProps% %secProps% %ipv4% %serialProps% %launchTarget% %cliExt% %command_line%
-goto end
-
-:create-project
-mvn archetype:generate -DarchetypeGroupId=org.rioproject -DarchetypeGroupId=org.rioproject -DarchetypeRepository=http://www.rio-project.org/maven2 -DarchetypeVersion=5.7
 goto end
 
 :start
@@ -92,9 +92,7 @@ set agentpath=-javaagent:"%RIO_HOME%\lib\rio-start-%rioVersion%.jar"
 
 set launchTarget=org.rioproject.start.ServiceStarter
 
-set loggingConfig="%RIO_HOME%\config\logging\rio-logging.properties"
-
-"%JAVA_HOME%\bin\java" -server %JAVA_MEM_OPTIONS% %classpath% %agentpath% -Djava.protocol.handler.pkgs=org.rioproject.url -Djava.rmi.server.useCodebaseOnly=false -Djava.util.logging.config.file=%loggingConfig% -Dorg.rioproject.service=%service% %USER_OPTS% -Djava.security.policy="%RIO_HOME%"\policy\policy.all -Djava.library.path=%RIO_NATIVE_DIR% -Drio.home="%RIO_HOME%" -Dorg.rioproject.home="%RIO_HOME%" -Drio.native.dir=%RIO_NATIVE_DIR% -Drio.log.dir=%RIO_LOG_DIR% -Drio.script.mainClass=%launchTarget% %launchTarget% "%starterConfig%"
+"%JAVA_HOME%\bin\java" -server %JAVA_MEM_OPTIONS% %classpath% %agentpath% -Djava.protocol.handler.pkgs=org.rioproject.url -Djava.rmi.server.useCodebaseOnly=false -Dlogback.configurationFile=%logbackConfig% -Djava.util.logging.config.file=%loggingConfig% -Dorg.rioproject.service=%service% %USER_OPTS% -Djava.security.policy="%RIO_HOME%"\policy\policy.all -Djava.library.path=%RIO_NATIVE_DIR% -Drio.home="%RIO_HOME%" -Dorg.rioproject.home="%RIO_HOME%" -Drio.native.dir=%RIO_NATIVE_DIR% -Drio.log.dir=%RIO_LOG_DIR% -Drio.script.mainClass=%launchTarget% %launchTarget% "%starterConfig%"
 goto end
 
 :noStarter

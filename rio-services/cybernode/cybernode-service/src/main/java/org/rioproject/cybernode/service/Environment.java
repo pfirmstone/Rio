@@ -1,12 +1,12 @@
 /*
  * Copyright to the original author or authors.
- *
+ * 
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
+ * 
+ *         http://www.apache.org/licenses/LICENSE-2.0
+ * 
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -36,7 +36,7 @@ import java.util.StringTokenizer;
  */
 public class Environment {
     /** Logger */
-    private static Logger logger = LoggerFactory.getLogger(Environment.class.getName());
+    private static final Logger logger = LoggerFactory.getLogger(Environment.class.getName());
 
     /*
      * Setup the default environment
@@ -107,7 +107,7 @@ public class Environment {
      * libraries from
      */
     static String setupNativeLibraryDirectories(Configuration config) throws IOException {
-        List<String> nativeDirs = new ArrayList<String>();
+        List<String> nativeDirs = new ArrayList<>();
         try {
             String configuredNativeDirs = (String)config.getEntry(CybernodeImpl.getConfigComponent(),
                                                                   "nativeLibDirectory", 
@@ -126,7 +126,7 @@ public class Environment {
         String nativeLibDirs = null;
         if(!nativeDirs.isEmpty()) {
             StringBuilder buffer = new StringBuilder();
-            String[] dirs = nativeDirs.toArray(new String[nativeDirs.size()]);
+            String[] dirs = nativeDirs.toArray(new String[0]);
             for(int i=0; i<dirs.length; i++) {
                 File nativeDirectory = new File(dirs[i]);
                 if(i>0)
@@ -217,9 +217,9 @@ public class Environment {
 
     private static String[] toStringArray(String s) {
         StringTokenizer tok = new StringTokenizer(s, File.pathSeparator+" ");
-        List<String> sList = new ArrayList<String>();
+        List<String> sList = new ArrayList<>();
         while(tok.hasMoreTokens())
             sList.add(tok.nextToken());
-        return sList.toArray(new String[sList.size()]);
+        return sList.toArray(new String[0]);
     }
 }

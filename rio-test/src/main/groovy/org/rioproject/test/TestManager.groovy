@@ -1,11 +1,11 @@
 /*
- * Copyright 2009 the original author or authors.
+ * Copyright to the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *        http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 package org.rioproject.test
+
 import groovy.util.logging.Slf4j
 import net.jini.config.Configuration
 import net.jini.core.entry.Entry
@@ -47,21 +48,28 @@ import org.rioproject.opstring.OperationalStringManager
 import org.rioproject.opstring.ServiceElement
 import org.rioproject.resolver.Artifact
 import org.rioproject.resolver.ResolverHelper
+import org.rioproject.resolver.maven2.Repository
+import org.rioproject.security.SecureEnv
+import org.rioproject.tools.webster.Webster
+import org.rioproject.util.RioHome
+import org.rioproject.web.WebsterService
 import org.rioproject.tools.harvest.HarvesterAgent
 import org.rioproject.tools.harvest.HarvesterBean
-import org.rioproject.tools.webster.Webster
+import org.rioproject.tools.jetty.Jetty
 import org.rioproject.util.PropertyHelper
 
+import java.util.concurrent.Executors
 import java.util.concurrent.ThreadPoolExecutor
+
 /**
  * Simplifies the running of core Rio services
- * 
+ *
  * @author Dennis Reedy
  */
 @Slf4j
 class TestManager {
     static final String TEST_HOSTS = 'org.rioproject.test.hosts'
-    List<Webster> websters = new ArrayList<Webster>()
+    List<WebsterService> websters = new ArrayList<>()
     List<Process> processes = new ArrayList<Process>()
     JiniClient client
     String rioHome
@@ -74,7 +82,10 @@ class TestManager {
     boolean createShutdownHook
     TestConfig testConfig
     def additionalExecProps=  [:]
-    ThreadPoolExecutor execPool = (ThreadPoolExecutor)java.util.concurrent.Executors.newCachedThreadPool();
+    ThreadPoolExecutor execPool = (ThreadPoolExecutor) Executors.newCachedThreadPool()
+    static {
+        SecureEnv.setup("${RioHome.get()}/config/security/rio-cert.ks")
+    }
 
     /**
      * Create a TestManager without installing a shutdown hook
@@ -101,53 +112,39 @@ class TestManager {
      * @throws IllegalArgumentException if the testConfig is null
      */
     void init(TestConfig testConfig) {
-        if(testConfig==null)
+        if (testConfig == null)
             throw new IllegalArgumentException("testConfig cannot be null")
         this.testConfig = testConfig
         config = loadManagerConfig()
-        if(config.manager.cleanLogs) {
-            File logs = getCreatedLogsFile(testConfig.component)
-            if(logs.exists()) {
-                logs.eachLine { line ->
-                    File f = new File((String)line)
-                    if(f.exists()) {
-                        if(FileUtils.remove(f)) {
-                            log.debug "Removed ${f.name}"
-                        } else {
-                            log.debug "Could not remove ${f.name}, check permissions"
-                        }
-                    }
-                }
-                logs.delete()
-            }
+        if (config.manager.cleanLogs) {
+            cleanLogs()
         }
         rioHome = System.getProperty('rio.home')
-        if(rioHome==null)
+        if (rioHome == null)
             throw new IllegalStateException('The rio.home system property must be set')
-        groups = System.getProperty(Constants.GROUPS_PROPERTY_NAME)
-        if(groups==null)
-            throw new IllegalStateException("The ${Constants.GROUPS_PROPERTY_NAME} system "+
-                                            "property must be set")
+
+        groups = testConfig.groups
         log.info "Using [${groups}] group for discovery"
 
-        DiscoveryManagementPool discoPool = DiscoveryManagementPool.getInstance();
-        if(config.manager.config) {
+        DiscoveryManagementPool discoPool = DiscoveryManagementPool.getInstance()
+        if (config.manager.config) {
             def mgrConfig = [PropertyHelper.expandProperties(config.manager.config)]
             Configuration conf = new GroovyConfig((String[])mgrConfig, null)
             discoPool.setConfiguration(conf)
         }
 
-        DiscoveryManagement dMgr = discoPool.getDiscoveryManager(null);
-        serviceDiscoveryManager =
-            new ServiceDiscoveryManager(dMgr, new LeaseRenewalManager())
+        DiscoveryManagement dMgr = discoPool.getDiscoveryManager(testConfig.component,
+                JiniClient.parseGroups(testConfig.groups),
+                JiniClient.parseLocators(testConfig.locators))
+        serviceDiscoveryManager = new ServiceDiscoveryManager(dMgr, new LeaseRenewalManager())
         //String hosts = System.getProperty(TEST_HOSTS, '')
 
-        if(createShutdownHook) {
-            Runtime rt = Runtime.getRuntime();
-            log.info "Adding shutdown hook"
+        if (createShutdownHook) {
+            Runtime rt = Runtime.getRuntime()
+            log.debug "Adding shutdown hook"
 
             Closure cl = {
-                log.info "Running shutdown hook, stop Rio services..."
+                log.debug "Running shutdown hook, stop Rio services..."
                 shutdown()
             }
             Thread shutdownHook = new Thread(cl, "RunPostShutdownHook")
@@ -157,19 +154,36 @@ class TestManager {
         startConfiguredServices()
     }
 
+    void cleanLogs() {
+        File logs = getCreatedLogsFile(testConfig.component)
+        if (logs.exists()) {
+            logs.eachLine { line ->
+                File f = new File((String)line)
+                if (f.exists()) {
+                    if (FileUtils.remove(f)) {
+                        log.debug "Removed ${f.name}"
+                    } else {
+                        log.debug "Could not remove ${f.name}, check permissions"
+                    }
+                }
+            }
+            logs.delete()
+        }
+    }
+
     private void startConfiguredServices() {
         startWebster()
-        if(testConfig.getNumLookups()>0) {
-            int lookupCount = testConfig.getNumLookups()-countLookups();
-            for(int i=0; i<lookupCount; i++)
-                startReggie();
+        if (testConfig.getNumLookups() > 0) {
+            int lookupCount = testConfig.getNumLookups()-countLookups()
+            for (int i=0; i<lookupCount; i++)
+                startReggie()
         }
 
-        if(testConfig.getNumMonitors()>0) {
-            int monitorCount = testConfig.getNumMonitors()-countMonitors();
-            if(monitorCount>0) {
-                for(int i=0; i<monitorCount; i++)
-                    startProvisionMonitor();
+        if (testConfig.getNumMonitors() > 0) {
+            int monitorCount = testConfig.getNumMonitors()-countMonitors()
+            if (monitorCount > 0) {
+                for (int i=0; i<monitorCount; i++)
+                    startProvisionMonitor()
                 /*
                 * Need to get an instance of DiscoveryManagement and set
                 * it to the OpStringManagerProxy utility in order to
@@ -179,23 +193,23 @@ class TestManager {
                 * strategies, specifically the utilization strategy
                 */
                 OpStringManagerProxy.setDiscoveryManagement(
-                        getServiceDiscoveryManager().getDiscoveryManager());
+                        getServiceDiscoveryManager().getDiscoveryManager())
             }
         }
 
-        if(testConfig.getNumCybernodes()>0) {
-            int cybernodeCount = testConfig.getNumCybernodes() - countCybernodes();
+        if (testConfig.getNumCybernodes() > 0) {
+            int cybernodeCount = testConfig.getNumCybernodes() - countCybernodes()
             for (int i = 0; i < cybernodeCount; i++)
-                startCybernode();
+                startCybernode()
         }
 
-        postInit();
+        postInit()
 
-        if(testConfig.getOpString()!=null) {
-            setOpStringToDeploy(testConfig.getOpString());
-            if(testConfig.autoDeploy()) {
-                OperationalStringManager mgr = deploy();
-                setDeployedOperationalStringManager(mgr);
+        if (testConfig.getOpString() != null) {
+            setOpStringToDeploy(testConfig.getOpString())
+            if (testConfig.autoDeploy() && testConfig.getNumMonitors() > 0) {
+                OperationalStringManager mgr = deploy()
+                setDeployedOperationalStringManager(mgr)
             }
         }
     }
@@ -220,7 +234,7 @@ class TestManager {
     Cybernode startCybernode() {
         def starter = config.manager.cybernodeStarter
         Cybernode cybernode = null
-        if(starterConfigOk(starter)) {
+        if (starterConfigOk(starter)) {
             String cybernodeStarter = "${PropertyHelper.expandProperties(starter)}"
             exec(cybernodeStarter)
             cybernode =  (Cybernode)waitForService(Cybernode.class)
@@ -241,7 +255,7 @@ class TestManager {
     Cybernode startCybernode(int hostIndex) {
         def starter = config.manager.cybernodeStarter
         Cybernode cybernode = null
-        if(starterConfigOk(starter)) {
+        if (starterConfigOk(starter)) {
             String cybernodeStarter = "${PropertyHelper.expandProperties(starter)}"
             exec(cybernodeStarter)
             cybernode =  (Cybernode)waitForService(Cybernode.class)
@@ -260,7 +274,7 @@ class TestManager {
     ProvisionMonitor startProvisionMonitor() {
         def starter = config.manager.monitorStarter
         ProvisionMonitor monitor = null
-        if(starterConfigOk(starter)) {
+        if (starterConfigOk(starter)) {
             String monitorStarter = "${PropertyHelper.expandProperties(starter)}"
             exec(monitorStarter)
             monitor = (ProvisionMonitor)waitForService(ProvisionMonitor.class)
@@ -281,7 +295,7 @@ class TestManager {
     ProvisionMonitor startProvisionMonitor(int hostIndex) {
         def starter = config.manager.monitorStarter
         ProvisionMonitor monitor = null
-        if(starterConfigOk(starter)) {
+        if (starterConfigOk(starter)) {
             String monitorStarter = "${PropertyHelper.expandProperties(starter)}"
             exec(monitorStarter)
             monitor = (ProvisionMonitor)waitForService(ProvisionMonitor.class)
@@ -297,14 +311,30 @@ class TestManager {
      *
      * @return The started Webster
      */
-    Webster startWebster() {
+    WebsterService startWebster() {
+        String m2Repo = Repository.getLocalRepository().absolutePath
         String rioHome = System.getProperty('rio.home')
-        String rioTestHome = System.getProperty('rio.test.home')
 
-        String websterRoots = "${rioHome}/lib-dl;${rioHome}/lib;${rioTestHome}/target/"
-        Webster webster = new Webster(0, websterRoots);
-        websters.add(webster);
-        return webster;
+        String testRoots = System.getProperty("rio.test.webster.roots")
+        String roots = "${rioHome}/lib-dl;${rioHome}/lib;${m2Repo}"
+        if (testRoots != null) {
+            roots = testRoots + ";" + roots
+        }
+
+        WebsterService webster
+        if (testConfig.useHttps()) {
+            SecureEnv.setup("${rioHome}/config/security/rio-cert.ks")
+
+            webster = new Jetty().setRoots(roots.split(";") as String[])
+            webster.startSecure()
+        } else {
+            //webster = new Jetty().setRoots(roots as String[])
+            StringBuilder rootBuilder = new StringBuilder()
+            webster = new Webster(0, roots)
+            webster.start()
+        }
+        websters.add(webster)
+        webster
     }
 
     /**
@@ -315,7 +345,7 @@ class TestManager {
     ServiceRegistrar startReggie() {
         def starter = config.manager.reggieStarter
         ServiceRegistrar reggie = null
-        if(starterConfigOk(starter)) {
+        if (starterConfigOk(starter)) {
             String reggieStarter = "${PropertyHelper.expandProperties(starter)}"
             exec(reggieStarter)
             reggie = (ServiceRegistrar)waitForService(ServiceRegistrar.class)
@@ -340,10 +370,13 @@ class TestManager {
                              "and set the <test-class-name>.opstring property",
                              opStringToDeploy
         URL opStringURL
-        if(Artifact.isArtifact(opStringToDeploy)) {
+        if (Artifact.isArtifact(opStringToDeploy)) {
             return deploy(opStringToDeploy)
         } else {
-            opStringURL = new File(opStringToDeploy).toURI().toURL()
+            opStringURL = TestManager.class.getClassLoader().getResource(opStringToDeploy)
+            if (opStringURL == null) {
+                opStringURL = new File(opStringToDeploy).toURI().toURL()
+            }
         }
         return deploy(opStringURL)
     }
@@ -357,11 +390,11 @@ class TestManager {
      * opstring is not an artifact
      */
     OperationalStringManager deploy(String opstring) {
-        if(Artifact.isArtifact(opstring)) {
+        if (Artifact.isArtifact(opstring)) {
             URL opStringURL = ResolverHelper.getResolver().getLocation(opstring, "oar")
-            if(opStringURL==null)
-                throw new OperationalStringException("Artifact "+opstring+" not resolvable");
-            OAR oar = new OAR(new File(opStringURL.toURI()));
+            if (opStringURL==null)
+                throw new OperationalStringException("Artifact "+opstring+" not resolvable")
+            OAR oar = new OAR(new File(opStringURL.toURI()))
             ProvisionMonitor monitor = (ProvisionMonitor)waitForService(ProvisionMonitor.class)
             return deploy(oar.loadOperationalStrings()[0], monitor)
         } else {
@@ -416,7 +449,7 @@ class TestManager {
     OperationalStringManager deploy(URL opstring, ProvisionMonitor monitor) {
         OpStringLoader loader = new OpStringLoader(getClass().classLoader)
         OperationalString[] opstrings = loader.parseOperationalString(opstring)
-        return deploy(opstrings[0], monitor)        
+        return deploy(opstrings[0], monitor)
     }
 
     /**
@@ -441,7 +474,7 @@ class TestManager {
      */
     boolean undeploy(String name) {
         ServiceItem[] items = getServiceItems(ProvisionMonitor.class)
-        if(items.length==0) {
+        if (items.length==0) {
             log.warn "No ProvisionMonitor instances discovered, cannot undeploy ${name}"
             return false
         }
@@ -454,8 +487,8 @@ class TestManager {
      * @param name The name of a deployed OperationalString
      * @param monitor The ProvisionMonitor instance to perform the undeployment
      */
-    boolean undeploy(String name, ProvisionMonitor monitor) {
-        if(monitor!=null) {
+    static boolean undeploy(String name, ProvisionMonitor monitor) {
+        if (monitor!=null) {
             DeployAdmin dAdmin = (DeployAdmin)monitor.admin
             return dAdmin.undeploy(name)
         } else {
@@ -469,14 +502,18 @@ class TestManager {
      *
      * @param monitor The ProvisionMonitor instance to perform the undeployment
      */
-    def undeployAll(ProvisionMonitor monitor) {
-        DeployAdmin deployAdmin = (DeployAdmin) monitor.getAdmin();
-        OperationalStringManager[] opStringMgrs = deployAdmin.getOperationalStringManagers();
-        for (OperationalStringManager mgr : opStringMgrs) {
-            String opStringName = mgr.getOperationalString().name
-            log.debug "Undeploying ${opStringName} ..."
-            deployAdmin.undeploy(opStringName);
-            log.debug "Undeployed ${opStringName}"
+    static void undeployAll(ProvisionMonitor monitor) {
+        try {
+            DeployAdmin deployAdmin = (DeployAdmin) monitor.getAdmin()
+            OperationalStringManager[] opStringMgrs = deployAdmin.getOperationalStringManagers()
+            for (OperationalStringManager mgr : opStringMgrs) {
+                String opStringName = mgr.getOperationalString().name
+                log.debug "Undeploying ${opStringName} ..."
+                deployAdmin.undeploy(opStringName)
+                log.debug "Undeployed ${opStringName}"
+            }
+        } catch (Exception e) {
+            log.error("While undeploying", e)
         }
     }
 
@@ -494,7 +531,7 @@ class TestManager {
 
         ProvisionMonitor monitor = (ProvisionMonitor)waitForService(ProvisionMonitor.class)
         DeployAdmin dAdmin = (DeployAdmin)monitor.admin
-        String name = deployedOperationalStringManager.getOperationalString().getName()
+        String name = deployedOperationalStringManager.getName()
         return dAdmin.getOperationalStringManager(name)
     }
 
@@ -516,7 +553,7 @@ class TestManager {
      *
      * @param service The Cybernode service proxy
      */
-    def stopCybernode(service) {
+    static void stopCybernode(service) {
         stopService(service, "Cybernode")
     }
 
@@ -525,8 +562,8 @@ class TestManager {
      *
      * @param service The ProvisionMonitor service proxy
      */
-    def stopProvisionMonitor(service) {
-        stopService(service, "Monitor") 
+    static void stopProvisionMonitor(service) {
+        stopService(service, "Monitor")
     }
 
     /**
@@ -535,11 +572,12 @@ class TestManager {
      * @param service The service proxy
      * @param name The name of the service to stop
      */
-    def stopService(service, String name) {
-        if(service==null)
+    static void stopService(service, String name) {
+        if (service==null) {
             throw new IllegalArgumentException("service proxy is null for ${name}")
+        }
 
-        ServiceStopHandler stopHandler = new ServiceStopHandler();
+        ServiceStopHandler stopHandler = new ServiceStopHandler()
         stopHandler.destroyService(service, name, System.out)
     }
 
@@ -547,10 +585,10 @@ class TestManager {
      * Shutdown all started services
      */
     def shutdown() {
-        for(Webster w : websters)
-            w.terminate();
+        for (WebsterService w : websters)
+            w.terminate()
         /* Make sure all services are terminated */
-        for(Process p : processes) {
+        for (Process p : processes) {
             p.destroy()
         }
     }
@@ -560,40 +598,41 @@ class TestManager {
      * indicates that harvesting should occur
      */
     def maybeRunHarvester() {
-        if(testConfig.runHarvester()) {
+        if (testConfig.runHarvester()) {
             ProvisionMonitor monitor
             ServiceItem[] items = getServiceItems(ProvisionMonitor.class)
-            if(items.length==0) {
+            if (items.length==0) {
                 log.warn "No discovered ProvisionMonitor instances, cannot deploy HarvesterAgents"
                 return
             }
             monitor = (ProvisionMonitor)items[0].service
             String opstring
-            if(config.manager.harvesterOpString)
+            if (config.manager.harvesterOpString) {
                 opstring = "${PropertyHelper.expandProperties(config.manager.harvesterOpString)}"
-            else
+            } else {
                 opstring = "${rioHome}/src/test/resources/harvester.groovy"
+            }
             URL opStringUrl
             try {
                 opStringUrl = new URL(opstring)
             } catch (MalformedURLException e) {
                 File opstringFile = new File(opstring)
-                if(!opstringFile.exists())
+                if (!opstringFile.exists())
                     log.warn "Cannot load [${opstringFile}], Unable to deploy Harvester support."
                 opStringUrl = opstringFile.toURI().toURL()
             }
             OpStringLoader loader = new OpStringLoader(getClass().classLoader)
             OperationalString[] opstrings = loader.parseOperationalString(opStringUrl)
             Assert.assertEquals "Expected only 1 OperationalString", 1, opstrings.length
-            for(ServiceElement elem : opstrings[0].services)
-                elem.getServiceBeanConfig().addInitParameter(HarvesterAgent.PREFIX,
-                                                             testConfig.getComponent())            
+            for (ServiceElement elem : opstrings[0].services) {
+                elem.getServiceBeanConfig().addInitParameter(HarvesterAgent.PREFIX, testConfig.getComponent())
+            }
             deploy(opstrings[0], monitor)
             /* Count the number of physical machines*/
             List<String> hosts = new ArrayList<String>()
-            for(ServiceBeanInstantiator sbi : monitor.getServiceBeanInstantiators()) {
+            for (ServiceBeanInstantiator sbi : monitor.getServiceBeanInstantiators()) {
                 String s = sbi.getInetAddress().toString()
-                if(!hosts.contains(s))
+                if (!hosts.contains(s))
                     hosts.add(s)
             }
             def h = getHarvester(serviceDiscoveryManager.discoveryManager)
@@ -601,10 +640,10 @@ class TestManager {
             log.info "Harvester:: Number of physical machines = ${hosts.size()}"
             long timeout = 1000*60
             long duration = 0
-            while(h.agentsHandledCount<hosts.size()) {
+            while (h.agentsHandledCount<hosts.size()) {
                 Thread.sleep(1000)
                 duration += 1000
-                if(duration >= timeout)
+                if (duration >= timeout)
                     break
             }
             log.info "Number of HarvesterAgents handled = ${h.agentsHandledCount}"
@@ -619,25 +658,8 @@ class TestManager {
      *
      * @return A {@link org.rioproject.tools.harvest.Harvester} instance
      */
-    def getHarvester(DiscoveryManagement dMgr) {
-        return new HarvesterBean(dMgr)
-    }
-
-    private String buildClassPath(File dir, String match) {
-        StringBuilder classpathBuilder = new StringBuilder()
-        for(File file : dir.listFiles()) {
-            if(file.name.startsWith(match))
-                classpathBuilder.append(File.pathSeparator).append(file.path)
-        }
-        return classpathBuilder.toString()
-    }
-
-    private String buildClassPath(File dir) {
-        StringBuilder classpathBuilder = new StringBuilder()
-        for(File file : dir.listFiles()) {
-            classpathBuilder.append(File.pathSeparator).append(file.path)
-        }
-        return classpathBuilder.toString()
+    static HarvesterBean getHarvester(DiscoveryManagement dMgr) {
+        new HarvesterBean(dMgr)
     }
 
     def addExecProperty(String key, String value) {
@@ -648,72 +670,65 @@ class TestManager {
         additionalExecProps.putAll(options)
     }
 
-    String getAdditonalExecProps() {
+    String getAdditionalExecProps() {
         StringBuilder s = new StringBuilder()
-        additionalExecProps.each {k, v ->
-            if(s.length()>0)
+        additionalExecProps.each { k, v ->
+            if (s.length() > 0)
                 s.append(" ")
             s.append("-D").append(k).append("=").append(v)
         }
         s.toString()
     }
-    
+
     private void exec(String starter) {
         String classpath = "${PropertyHelper.expandProperties(config.manager.execClassPath)}"
         String service = starter.substring(starter.lastIndexOf("-")+1)
         service = service.substring(0, service.indexOf("."))
         String jvmOptions = Util.replace("${config.manager.jvmOptions}", '${service}', service)
         jvmOptions = "${PropertyHelper.expandProperties(jvmOptions)}"
-        if(config.manager.inheritOptions)
+        if (config.manager.inheritOptions)
             jvmOptions = JVMOptionChecker.getJVMInputArgs(jvmOptions)
-        jvmOptions = jvmOptions+ getAdditonalExecProps()
+        jvmOptions = jvmOptions+ getAdditionalExecProps()
         jvmOptions = jvmOptions+' -D'+Constants.RIO_TEST_EXEC_DIR+'='+System.getProperty("user.dir")
 
         StringBuilder classpathBuilder = new StringBuilder()
         classpathBuilder.append(classpath)
-        File loggingLibDir = new File("$rioHome/lib/logging")
-        if(!service.equals(("reggie")))
-            classpathBuilder.append(buildClassPath(loggingLibDir, "rio-logging-support"))
 
-        /* Check if logback is being used, if so set logback configuration */
-        if(testConfig.getLoggingSystem()==TestConfig.LoggingSystem.LOGBACK) {
-            jvmOptions = jvmOptions+" -Dlogback.configurationFile=${rioHome}/config/logging/logback.groovy"
-            File logbackDir = new File(loggingLibDir, "logback");
-            classpathBuilder.append(buildClassPath(logbackDir))
-        } else {
-            jvmOptions = jvmOptions+" -Djava.util.logging.config.file=${rioHome}/config/logging/rio-logging.properties"
-            File julDir = new File(loggingLibDir, "jul");
-            classpathBuilder.append(buildClassPath(julDir))
-        }
+        jvmOptions = jvmOptions + " -Dlogback.configurationFile=${rioHome}/config/logging/logback.groovy "
+        jvmOptions = jvmOptions + " -Djava.util.logging.config.file=${rioHome}/config/logging/logging.properties "
 
-        String logDir = null        
+        String logDir = null
         String mainClass = "${config.manager.mainClass}"
-        if(config.manager.log.size()>0) {
+        if (config.manager.log.size() > 0) {
             logDir = "${config.manager.log}${File.separator}${testConfig.component}"
             File f = new File(logDir)
-            if(!f.exists()) {
+            if (!f.exists()) {
                 f.mkdirs()
                 File createdLogsFile = getAndCreateCreatedLogsFile(testConfig.component)
                 createdLogsFile.append(logDir+'\n')
             }
         }
 
-        jvmOptions = jvmOptions+' -Drio.log.dir='+logDir+' -Drio.watch.log.dir='+logDir
+        jvmOptions = jvmOptions + ' -Drio.log.dir=' + logDir + ' '
+
         StringBuilder cmdLineBuilder = new StringBuilder()
-        if(System.getProperty("os.name").contains("Windows"))
+        if (System.getProperty("os.name").contains("Windows")) {
             cmdLineBuilder.append("cmd.exe /c")
+        }
+
         cmdLineBuilder.append(getJava()).append(" ")
                 .append(jvmOptions)
                 .append(" -cp ").append(classpathBuilder.toString()).append(" ")
                 .append(mainClass).append(" ").append(starter)
-        String cmdLine = cmdLineBuilder.toString();
+
+        String cmdLine = cmdLineBuilder.toString()
         log.info "Logging for $service will be sent to ${logDir}"
         log.info "Starting ${service}, using starter config [${starter}]"
         log.info "Exec command line: ${cmdLine}"
         Process process = Runtime.runtime.exec(cmdLine)
         processes.add(process)
     }
-    
+
     /**
      * Wait for a deployment to complete. This means to wait for all services
      * declared to activate and join the network
@@ -724,7 +739,7 @@ class TestManager {
      * @throws TimeoutException if the time waiting for the deployment exceeds
      * {@link ServiceMonitor#MAX_TIMEOUT}
      */
-    public void waitForDeployment(OperationalStringManager mgr) {
+    void waitForDeployment(OperationalStringManager mgr) {
         OperationalString opstring  = mgr.getOperationalString()
         Map<ServiceElement, Integer> deploy = new HashMap<ServiceElement, Integer>()
         int total = 0
@@ -750,28 +765,28 @@ class TestManager {
                              "Planned [${elem.planned}], deployed [${numDeployed}]"
                 }
             }
-            if(sleptFor==ServiceMonitor.MAX_TIMEOUT)
-                break;
+            if (sleptFor == ServiceMonitor.MAX_TIMEOUT)
+                break
             if (deployed < total) {
                 Thread.sleep(1000)
                 sleptFor += 1000
             }
         }
 
-        if(sleptFor>=ServiceMonitor.MAX_TIMEOUT && deployed < total)
-            throw new TimeoutException("Timeout waiting for service to be deployed");
+        if (sleptFor>=ServiceMonitor.MAX_TIMEOUT && deployed < total)
+            throw new TimeoutException("Timeout waiting for service to be deployed")
     }
 
     private int countLookups() {
-        return countServices(ServiceRegistrar.class)
+        countServices(ServiceRegistrar.class)
     }
 
     private int countMonitors() {
-        return countServices(ProvisionMonitor.class)
+        countServices(ProvisionMonitor.class)
     }
 
     private int countCybernodes() {
-        return countServices(Cybernode.class)
+        countServices(Cybernode.class)
     }
 
     private int countServices(Class serviceInterface) {
@@ -779,7 +794,7 @@ class TestManager {
         ServiceItem[] items = getServiceItems(serviceInterface)
         log.info "Discovered $items.length instances of ${serviceInterface.name}, "+
                  "elapsed time: ${(System.currentTimeMillis()-t0)} millis"
-        return items.length
+        items.length
     }
 
     /**
@@ -820,16 +835,16 @@ class TestManager {
     def getServices(Class type, String name) {
         def classes = [type]
         def attrs = null
-        if(name!=null)
+        if (name!=null)
             attrs = [new Name(name)]
         ServiceTemplate template = new ServiceTemplate(null, (Class[])classes, (Entry[])attrs)
         ServiceItem[] items = serviceDiscoveryManager.lookup(template,
                                                              Integer.MAX_VALUE,
                                                              null)
         def services = []
-        for(int i=0; i<items.length; i++)
+        for (int i = 0; i < items.length; i++)
             services << items[i].service
-        return services
+        services
     }
 
     /**
@@ -841,8 +856,8 @@ class TestManager {
      *
      * @throws TimeoutException is the service is not discovered in 60 seconds
      */
-    public <T> T waitForService(Class<T> type) {
-        return waitForService(type, null)
+    def <T> T waitForService(Class<T> type) {
+        waitForService(type, null)
     }
 
     /**
@@ -855,7 +870,7 @@ class TestManager {
      * @throws TimeoutException is the service is not discovered in 60 seconds
      */
     def waitForService(String serviceName) {
-        return waitForService(null, serviceName)
+        waitForService(null, serviceName)
     }
 
     /**
@@ -868,20 +883,20 @@ class TestManager {
      *
      * @throws TimeoutException is the service is not discovered in 60 seconds
      */
-    public <T> T waitForService(Class<T> type, String name) {
+    def <T> T waitForService(Class<T> type, String name) {
         def classes = null
-        if(type!=null)
+        if (type!=null)
             classes = [type]
         def attrs = null
-        if(name!=null)
+        if (name!=null)
             attrs = [new Name(name)]
         ServiceTemplate template = new ServiceTemplate(null, (Class[])classes, (Entry[])attrs)
         def service
         StringBuffer sb = new StringBuffer()
-        if(type!=null)
+        if (type!=null)
             sb.append(type.name)
-        if(name!=null) {
-            if(sb.length()>0)
+        if (name!=null) {
+            if (sb.length() > 0)
                 sb.append(", ")
             sb.append("name: ").append(name)
         }
@@ -894,64 +909,73 @@ class TestManager {
         }
         service = serviceItem.service
         log.info "${sb.toString()} has been discovered, elapsed time: ${(System.currentTimeMillis()-t0)} millis"
-        return service
+        service as T
     }
 
-    private String getJava() {
-        StringBuilder jvmBuilder = new StringBuilder();
-        jvmBuilder.append(System.getProperty("java.home"));
-        jvmBuilder.append(File.separator);
-        jvmBuilder.append("bin");
-        jvmBuilder.append(File.separator);
-        jvmBuilder.append("java");
-        jvmBuilder.append(" ");
-        return jvmBuilder.toString();
+    private static String getJava() {
+        StringBuilder jvmBuilder = new StringBuilder()
+        jvmBuilder.append(System.getProperty("java.home"))
+        jvmBuilder.append(File.separator)
+        jvmBuilder.append("bin")
+        jvmBuilder.append(File.separator)
+        jvmBuilder.append("java")
+        jvmBuilder.append(" ")
+        jvmBuilder.toString()
     }
 
-    private def loadManagerConfig() {
-        String defaultManagerConfig =
-            "jar:file:${Utils.getRioHome()}/lib/rio-test-${RioVersion.VERSION}.jar!/default-manager-config.groovy"
-        String mgrConfig = System.getProperty('org.rioproject.test.manager.config',
-                                              defaultManagerConfig)
-        log.info "Using TestManager configuration ${mgrConfig}"
-        URL url
+    private static def loadManagerConfig() {
+        String mgrConfig = System.getProperty('org.rioproject.test.manager.config')
+        URL url = null
+        if (mgrConfig != null) {
+            log.info "Using TestManager configuration ${mgrConfig}"
+            url = loadManagerConfig(mgrConfig)
+        }
+        if (url == null) {
+            def classpath =
+                    ResolverHelper.getResolver().getClassPathFor(String.format("org.rioproject:rio-test:%s",
+                            RioVersion.VERSION)) as String[]
+            def testJar = classpath.toList().stream().filter { s -> s.contains('rio-test') }.find()
+            String defaultManagerConfig = String.format("jar:file:%s!/default-manager-config.groovy", testJar)
+            url = loadManagerConfig(defaultManagerConfig)
+            if (url == null) {
+                throw new RuntimeException(
+                        "Cannot load [${mgrConfig}], or [${defaultManagerConfig}]. This file is needed " +
+                                "by the Rio TestManager to initialize. Check the setting of the " +
+                                "org.rioproject.test.manager.config system property.")
+            }
+        }
+        new ConfigSlurper().parse(url)
+    }
+
+    private static URL loadManagerConfig(String mgrConfig) {
+        URL url = null
         try {
             url = new URL(mgrConfig)
         } catch (MalformedURLException e) {
             File mgrConfigFile = new File(mgrConfig)
-            if(!mgrConfigFile.exists())
-                throw new RuntimeException(
-                    "Cannot load [${mgrConfig}], it is not found in it's default "+
-                    "location of [${defaultManagerConfig}], or "+
-                    "your location of the file is incorrect. This file is needed "+
-                    "by the Rio TestManager to initialize. Check the setting of the "+
-                    "org.rioproject.test.manager.config system property, and/or copy this "+
-                    "file from the Rio project distribution to the location "+
-                    "mentioned above.", e)
-            url = mgrConfigFile.toURI().toURL()
+            if (mgrConfigFile.exists()) {
+                url = mgrConfigFile.toURI().toURL()
+            }
         }
-
-        def config = new ConfigSlurper().parse(url)
-        return config
+        url
     }
 
-    private File getCreatedLogsFile(String testName) {
+    private static File getCreatedLogsFile(String testName) {
         File parent = new File(System.getProperty('java.io.tmpdir')+File.separator+".rio")
-        File logs = new File(parent, "$testName-test-logs")
-        return logs
+        new File(parent, "$testName-test-logs")
     }
 
-    private File getAndCreateCreatedLogsFile(String testName) {
+    private static File getAndCreateCreatedLogsFile(String testName) {
         File dir = new File(System.getProperty('java.io.tmpdir')+File.separator+".rio")
-        if(!dir.exists())
+        if (!dir.exists())
             dir.mkdirs()
         File logs = new File(dir, "$testName-test-logs")
-        if(!logs.exists())
+        if (!logs.exists())
             logs.createNewFile()
-        return logs
+        logs
     }
 
-    private boolean starterConfigOk(def starter) {
-        return starter instanceof String
+    private static boolean starterConfigOk(def starter) {
+        starter instanceof String
     }
 }

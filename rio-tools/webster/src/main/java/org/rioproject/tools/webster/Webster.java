@@ -1,13 +1,12 @@
 /*
- * Copyright 2008 the original author or authors.
- * Copyright 2005 Sun Microsystems, Inc.
- *
+ * Copyright to the original author or authors.
+ * 
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
+ * 
+ *         http://www.apache.org/licenses/LICENSE-2.0
+ * 
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -18,15 +17,19 @@ package org.rioproject.tools.webster;
 
 import groovy.util.ConfigObject;
 import groovy.util.ConfigSlurper;
+import net.jini.config.Configuration;
 import org.rioproject.config.Constants;
 import org.rioproject.net.HostUtil;
 import org.rioproject.net.PortRangeServerSocketFactory;
+import org.rioproject.web.WebsterService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.net.ServerSocketFactory;
 import java.io.*;
 import java.net.*;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.NotDirectoryException;
 import java.util.*;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -57,22 +60,28 @@ import java.util.concurrent.ThreadPoolExecutor;
  * @author Dennis Reedy
  */
 @SuppressWarnings("PMD.AvoidThrowingRawExceptionTypes")
-public class Webster implements Runnable {
+public class Webster implements WebsterService, Runnable {
     static final int DEFAULT_MAX_THREADS = 10;
     private ServerSocket ss;
     private int port;
     private boolean run = true;
-    private static Properties MimeTypes = new Properties();
+    private static final Properties MimeTypes = new Properties();
     private String[] websterRoot;
     private ThreadPoolExecutor pool;
     private int maxThreads = DEFAULT_MAX_THREADS;
     private int soTimeout = 0;
-    private static Logger logger = LoggerFactory.getLogger("org.rioproject.tools.webster");
+    static final String COMPONENT = "org.rioproject.tools.webster";
+    private static final Logger logger = LoggerFactory.getLogger(COMPONENT);
     private com.sun.jini.start.LifeCycle lifeCycle;
     private boolean debug = false;
     private ServerSocketFactory socketFactory;
     private String putDirectory;
-    private static String SERVER_DESCRIPTION=Webster.class.getName();
+    private static final String SERVER_DESCRIPTION = Webster.class.getName();
+    private String roots;
+    private String bindAddress;
+    private boolean started = false;
+    private boolean join;
+    private final List<String> expandedRoots = new LinkedList<>();
 
     /**
      * Create a new Webster using a Groovy config file
@@ -83,24 +92,25 @@ public class Webster implements Runnable {
      * org.rioproject.tools.webster.root system property (if set) or defaulting to
      * the user.dir system property.
      *
-     * @throws BindException if Webster cannot create a socket
+     * @throws Exception if Webster cannot create a socket
      */
     @SuppressWarnings("unchecked")
-    public Webster(final File websterConfig) throws BindException, MalformedURLException {
+    public Webster(final File websterConfig) throws Exception {
         ConfigObject config = new ConfigSlurper().parse(websterConfig.toURI().toURL());
-        Map flattened = config.flatten();
+        Map<?, ?> flattened = config.flatten();
         port = (Integer)flattened.get("webster.port");
         StringBuilder websterRoots = new StringBuilder();
-        for(String root : (List<String>)flattened.get("webster.roots")) {
-            if(websterRoots.length()>0)
+        for (String root : (List<String>)flattened.get("webster.roots")) {
+            if (websterRoots.length()>0)
                 websterRoots.append(";");
             websterRoots.append(root);
         }
-        String bindAddress = (String) flattened.get("webster.address");
-        if(flattened.get("webster.putDirectory")!=null) {
+        this.bindAddress = (String) flattened.get("webster.address");
+        if (flattened.get("webster.putDirectory")!=null) {
             putDirectory = (String) flattened.get("webster.putDirectory");
         }
-        initialize(websterRoots.toString(), bindAddress);
+        this.roots = websterRoots.toString();
+        start();
     }
 
     /**
@@ -110,9 +120,9 @@ public class Webster implements Runnable {
      * @param roots The root(s) to serve code from. This is a semi-colin
      * delimited list of directories
      *
-     * @throws BindException if Webster cannot create a socket
+     * @throws Exception if Webster cannot create a socket
      */
-    public Webster(int port, String roots) throws BindException {
+    public Webster(int port, String roots) throws Exception {
         this(port, roots, null);
     }
 
@@ -125,11 +135,13 @@ public class Webster implements Runnable {
      * @param bindAddress TCP/IP address which Webster should bind to (null
      * implies no specific address)
      *
-     * @throws BindException if Webster cannot create a socket
+     * @throws Exception if Webster cannot create a socket
      */
-    public Webster(int port, String roots, String bindAddress) throws BindException {
+    public Webster(int port, String roots, String bindAddress) throws Exception {
         this.port = port;
-        initialize(roots, bindAddress);
+        this.roots = roots;
+        this.bindAddress = bindAddress;
+        start();
     }
 
     /**
@@ -141,12 +153,34 @@ public class Webster implements Runnable {
      * @param bindAddress TCP/IP address which Webster should bind to (null
      * implies no specific address)
      *
-     * @throws BindException if Webster cannot create a socket
+     * @throws Exception if Webster cannot create a socket
      */
-    public Webster(ServerSocketFactory socketFactory, String roots, String bindAddress) throws BindException {
+    public Webster(ServerSocketFactory socketFactory, String roots, String bindAddress) throws Exception {
         this.socketFactory = socketFactory;
-        initialize(roots, bindAddress);
+        this.roots = roots;
+        this.bindAddress = bindAddress;
+        start();
     }
+
+    public Webster(Configuration config) throws Exception {
+        port = ((Integer) config.getEntry(COMPONENT,"port", int.class, 0));
+        String[] roots = (String[]) config.getEntry(COMPONENT, "roots", String[].class, null);
+        if (roots != null) {
+            StringBuilder s = new StringBuilder();
+            for (String root : roots) {
+                if (s.length() > 0) {
+                    s.append(";");
+                }
+                s.append(root);
+            }
+            setupRoots(s.toString());
+        }
+        putDirectory = (String) config.getEntry(COMPONENT, "putDir", String.class, null);
+        maxThreads = (Integer) config.getEntry(COMPONENT, "maxThreads", int.class, 10);
+        bindAddress = (String) config.getEntry(COMPONENT, "bindAddress", String.class, null);
+        start();
+    }
+
 
     /**
      * Create a new Webster, compatible with the ServiceStarter mechanism in
@@ -158,49 +192,47 @@ public class Webster implements Runnable {
      * Note -port and -portRange are mutually exclusive
      * @param lifeCycle The LifeCycle object, may be null
      *
-     * @throws BindException if Webster cannot create a socket
-     * @throws IllegalArgumentException if both -port and -portRange are provided
-     * @throws NumberFormatException if the ports cannot be parsed into an integer
+     * @throws Exception if Webster cannot be started
      */
-    public Webster(String[] options, com.sun.jini.start.LifeCycle lifeCycle) throws BindException {
-        if(options == null)
+    public Webster(String[] options, com.sun.jini.start.LifeCycle lifeCycle) throws Exception {
+        if (options == null)
             throw new IllegalArgumentException("options are null");
         this.lifeCycle = lifeCycle;
-        String roots = null;
-        String bindAddress = null;
         boolean parsedPort = false;
-        for(int i = 0; i < options.length; i++) {
+        for (int i = 0; i < options.length; i++) {
             String option = options[i];
-            if("-port".equals(option)) {
+            if ("-port".equals(option)) {
                 i++;
                 this.port = Integer.parseInt(options[i]);
                 parsedPort = true;
-            } else if("-portRange".equals(option)) {
-                if(parsedPort)
+            } else if ("-portRange".equals(option)) {
+                if (parsedPort)
                     throw new IllegalArgumentException("both -port and -portRange " +
                                                        "cannot be provided, choose one or the other");
                 i++;
                 socketFactory = parsePortRange(options[i]);
-            } else if("-roots".equals(option)) {
+            } else if ("-roots".equals(option)) {
                 i++;
-                roots = options[i];
-            } else if("-bindAddress".equals(option)) {
+                this.roots = options[i];
+            } else if ("-bindAddress".equals(option)) {
                 i++;
                 bindAddress = options[i];
-            } else if("-maxThreads".equals(option)) {
+            } else if ("-maxThreads".equals(option)) {
                 i++;
                 maxThreads = Integer.parseInt(options[i]);
-            } else if("-soTimeout".equals(option)) {
+            } else if ("-soTimeout".equals(option)) {
                 i++;
                 soTimeout = Integer.parseInt(options[i]);
-            } else if("-putDirectory".equals(option)) {
+            } else if ("-putDirectory".equals(option)) {
                 i++;
                 putDirectory = options[i];
+            } else if ("-join".equals(option)) {
+                join = true;
             } else {
                 throw new IllegalArgumentException(option);
             }
         }
-        initialize(roots, bindAddress);
+        start();
     }
 
     /*
@@ -217,13 +249,10 @@ public class Webster implements Runnable {
 
     /*
      * Initialize Webster
-     * 
-     * @param roots The root(s) to serve code from. This is a semi-colin
-     * delimited list of directories
      */
-    private void initialize(String roots, String bindAddress) throws BindException {
+    private void initialize() throws BindException {
         String d = System.getProperty("webster.debug");
-        if(d != null)
+        if (d != null)
             debug = true;
         String str = System.getProperty("webster.put.dir");
         if (str != null) {
@@ -234,51 +263,63 @@ public class Webster implements Runnable {
         setupRoots(roots);
         try {
             InetAddress address;
-            if(bindAddress==null) {
+            if (bindAddress==null) {
                 address = HostUtil.getInetAddressFromProperty(Constants.RMI_HOST_ADDRESS);
             } else {
                 address = InetAddress.getByName(bindAddress);
             }
-            if(socketFactory==null) {
+            if (socketFactory==null) {
                 ss = new ServerSocket(port, 0, address);
             } else {
                 ss = socketFactory.createServerSocket(port, 0, address);
             }
-            if(debug)
+            if (debug)
                 System.out.println("Webster serving on : "+ss.getInetAddress().getHostAddress()+":"+port);
-            if(logger.isDebugEnabled())
+            if (logger.isDebugEnabled())
                 logger.debug("Webster serving on : {}:{}", ss.getInetAddress().getHostAddress(), port);
 
             port = ss.getLocalPort();
         } catch(IOException ioe) {
             throw new BindException("Could not start Webster.");
         }
-        if(debug)
+        if (debug)
             System.out.println("Webster listening on port : " + port);
-        if(logger.isDebugEnabled())
+        if (logger.isDebugEnabled())
             logger.debug("Webster listening on port : " + port);
+        
         pool = (ThreadPoolExecutor) Executors.newFixedThreadPool(maxThreads);
-        if(debug)
+        if (debug)
             System.out.println("Webster maxThreads ["+maxThreads+"]");
-        if(logger.isDebugEnabled())
+        if (logger.isDebugEnabled())
             logger.debug("Webster maxThreads [{}]", maxThreads);
-        if(soTimeout>0) {
-            if(debug)
+        
+        if (soTimeout > 0) {
+            if (debug)
                 System.out.println("Webster Socket SO_TIMEOUT set to ["+soTimeout+"] millis");
-            if(logger.isDebugEnabled())
+            if (logger.isDebugEnabled())
                 logger.debug("Webster Socket SO_TIMEOUT set to [{}]] millis", soTimeout);
         }
-        if(putDirectory!=null && debug) {
+        if (putDirectory != null && debug) {
             System.out.println("putDirectory: " + putDirectory);
         }
 
         /* Set system properties */
+        if (logger.isDebugEnabled()) {
+            logger.debug("Setting WEBSTER property to: " + "http://"+ss.getInetAddress().getHostAddress()+":"+port);
+        }
         System.setProperty(Constants.WEBSTER, "http://"+ss.getInetAddress().getHostAddress()+":"+port);
         System.setProperty(Constants.WEBSTER_ROOTS, roots);
 
         Thread runner = new Thread(this, "Webster");
         runner.setDaemon(true);
         runner.start();
+        if (join) {
+            try {
+                runner.join();
+            } catch (InterruptedException e) {
+                logger.warn("Interrupted", e);
+            }
+        }
     }
 
     /**
@@ -288,9 +329,10 @@ public class Webster implements Runnable {
      */
     public String getRoots() {
         StringBuilder buffer = new StringBuilder();
-        for(int i = 0; i < websterRoot.length; i++) {
-            if(i > 0)
+        for (int i = 0; i < websterRoot.length; i++) {
+            if (i > 0) {
                 buffer.append(";");
+            }
             buffer.append(websterRoot[i]);
         }
         return (buffer.toString());
@@ -303,34 +345,51 @@ public class Webster implements Runnable {
      * If the socket is null, return null.
      */
     public String getAddress() {
-        if(ss==null)
-            return(null);
-        return(ss.getInetAddress().getHostAddress());
+        if (ss == null) {
+            return null;
+        }
+        return ss.getInetAddress().getHostAddress();
+    }
+
+    @Override
+    public WebsterService setRoots(String... roots) {
+        websterRoot = new String[roots.length];
+        System.arraycopy(roots, 0, websterRoot, 0, roots.length);
+        return this;
     }
 
     /*
      * Setup the websterRoot property
      */
     private void setupRoots(String roots) {
-        if(roots == null)
+        if (roots == null) {
             throw new IllegalArgumentException("roots is null");
-        StringTokenizer tok = new StringTokenizer(roots, ";");
-        websterRoot = new String[tok.countTokens()];
-        if(websterRoot.length > 1) {
-            for(int j = 0; j < websterRoot.length; j++) {
-                websterRoot[j] = tok.nextToken();
-                if(debug)
-                    System.out.println("Root " + j + " = " + websterRoot[j]);
-                if(logger.isDebugEnabled())
-                    logger.debug("Root " + j + " = " + websterRoot[j]);
-            }
-        } else {
-            websterRoot[0] = roots;
-            if(debug)
-                System.out.println("Root  = " + websterRoot[0]);
-            if(logger.isDebugEnabled())
-                logger.debug("Root  = " + websterRoot[0]);
         }
+        this.roots = roots;
+        setRoots(roots.split(";"));
+    }
+
+    @Override
+    public URI getURI() {
+        try {
+            return new URI(String.format("http://%s:%s", getAddress(), getPort()));
+        } catch (URISyntaxException e) {
+            logger.error("Failed getting URI", e);
+        }
+        return null;
+    }
+
+    @Override
+    public void start() throws Exception {
+        if (!started) {
+            initialize();
+            started = true;
+        }
+    }
+
+    @Override
+    public void startSecure() throws Exception {
+        throw new Exception("https is not implemented");
     }
 
     /**
@@ -338,18 +397,20 @@ public class Webster implements Runnable {
      */
     public void terminate() {
         run = false;
-        if(ss!=null) {
+        if (ss != null) {
             try {
                 ss.close();
             } catch(IOException e) {
                 logger.warn("Exception closing Webster ServerSocket");
             }
         }
-        if(lifeCycle != null)
+        if (lifeCycle != null) {
             lifeCycle.unregister(this);
+        }
         
-        if(pool!=null)
+        if (pool != null) {
             pool.shutdownNow();
+        }
     }
 
     /**
@@ -358,7 +419,7 @@ public class Webster implements Runnable {
      * @return Te port Webster is bound to
      */
     public int getPort() {
-        return (port);
+        return port;
     }
 
     /*
@@ -384,13 +445,13 @@ public class Webster implements Runnable {
     }
 
     public void run() {
-        Socket s  ;
+        Socket s;
         try {
             loadMimes();
             String fileName;
             while (run) {
                 s = ss.accept(); // accept incoming requests
-                if(soTimeout>0) {
+                if (soTimeout > 0) {
                     s.setSoTimeout(soTimeout);
                 }
                 String line;
@@ -421,15 +482,15 @@ public class Webster implements Runnable {
                         buff.append("Request: ").append(line);
                         System.out.println("\n"+buff.toString());
                     }
-                    if(logger.isDebugEnabled()) {
+                    if (logger.isDebugEnabled()) {
                         StringBuilder buff = new StringBuilder();
                         buff.append("From: ").append(from).append(", ");
-                        if(soTimeout > 0)
+                        if (soTimeout > 0)
                             buff.append("SO_TIMEOUT: ").append(soTimeout).append(", ");
                         buff.append("Request: ").append(line);
                         logger.debug(buff.toString());
                     }
-                    if (line.length()>0) {
+                    if (line.length() > 0) {
                         tokenizer = new StringTokenizer(line, " ");
                         if (!tokenizer.hasMoreTokens())
                             break;
@@ -455,7 +516,7 @@ public class Webster implements Runnable {
                         if (header.getProperty("GET") != null) {
                             pool.execute(new GetFile(s, fileName));
                         } else if (header.getProperty("PUT") != null) {
-                            if(putDirectory!=null) {
+                            if (putDirectory != null) {
                                 pool.execute(new PutFile(s, fileName, header, inputStream));
                             } else {
                                 DataOutputStream clientStream = new DataOutputStream(new BufferedOutputStream(s.getOutputStream()));
@@ -464,7 +525,11 @@ public class Webster implements Runnable {
                                 clientStream.close();
                             }
                         } else if (header.getProperty("DELETE") != null) {
-                            pool.execute(new DelFile(s, fileName));
+                            //pool.execute(new DelFile(s, fileName));
+                            DataOutputStream clientStream = new DataOutputStream(new BufferedOutputStream(s.getOutputStream()));
+                            clientStream.writeBytes("HTTP/1.1 405 Method Not Allowed\nWebster is in read-only mode\r\n\r\n");
+                            clientStream.flush();
+                            clientStream.close();
                         } else if (header.getProperty("HEAD") != null) {
                             pool.execute(new Head(s, fileName));
                         } else {
@@ -482,7 +547,7 @@ public class Webster implements Runnable {
                     DataOutputStream clientStream = new DataOutputStream(new BufferedOutputStream(s.getOutputStream()));
                     clientStream.writeBytes("HTTP/1.1 500 Internal Server Error\n"+
                                             "MIME-Version: 1.0\n"+
-                                            "Server: "+SERVER_DESCRIPTION+"\n"+
+                                            "Server: " + SERVER_DESCRIPTION + "\n"+
                                             "\n\n<H1>500 Internal Server Error</H1>\n"
                                             +e);
                     clientStream.flush();
@@ -491,36 +556,36 @@ public class Webster implements Runnable {
                 }
             }
         } catch(Exception e) {
-            if(run) {
+            if (run) {
                 logger.warn("Processing HTTP Request", e);
             }
         }
     }
 
     // load the properties file
-    void loadMimes() throws IOException {
-        if(debug)
+    void loadMimes() {
+        if (debug)
             System.out.println("Loading mimetypes ... ");
-        if(logger.isDebugEnabled())
+        if (logger.isDebugEnabled())
             logger.debug("Loading mimetypes ... ");
         ClassLoader ccl = Thread.currentThread().getContextClassLoader();
         URL fileURL = ccl.getResource("org/rioproject/tools/webster/mimetypes.properties");
-        if(fileURL != null) {
+        if (fileURL != null) {
             try {
                 InputStream is = fileURL.openStream();
                 MimeTypes.load(is);
                 close(is);
-                if(debug)
+                if (debug)
                     System.out.println("Mimetypes loaded");
-                if(logger.isDebugEnabled())
+                if (logger.isDebugEnabled())
                     logger.debug("Mimetypes loaded");
             } catch(IOException ioe) {
                 logger.error("Loading Mimetypes", ioe);
             }
         } else {
-            if(debug)
+            if (debug)
                 System.out.println("mimetypes.properties not found, loading defaults");
-            if(logger.isDebugEnabled())
+            if (logger.isDebugEnabled())
                 logger.debug("mimetypes.properties not found, loading defaults");
             MimeTypes.put("jpg", "image/jpg");
             MimeTypes.put("jpeg", "image/jpg");
@@ -546,9 +611,9 @@ public class Webster implements Runnable {
         }
     } // end of loadMimes
 
-    protected File parseFileName(final String filename) {
-        String fileNameWithSpacesHandled = filename.replace("%20", " ");
-        StringBuilder fn = new StringBuilder(fileNameWithSpacesHandled);
+    protected File parseFileName(final String filename) throws IOException {
+        String decodedFileName = URLDecoder.decode(filename, StandardCharsets.UTF_8.toString());
+        StringBuilder fn = new StringBuilder(decodedFileName);
         for (int i = 0; i < fn.length(); i++) {
             if (fn.charAt(i) == '/')
                 fn.replace(i, i + 1, File.separator);
@@ -557,42 +622,46 @@ public class Webster implements Runnable {
         String[] roots = expandRoots();
         for (String root : roots) {
             f = new File(root, fn.toString());
+            if (logger.isDebugEnabled()) {
+                logger.debug("Looking for {} in {}, found? {}", fn, root, f.exists());
+            }
             if (f.exists()) {
-                return (f);
+                return f;
             }
         }
-        return (f);
+        return f;
     }
 
-    protected String[] expandRoots() {
-        List<String> expandedRoots = new LinkedList<String>();
-        if(hasWildcard()) {
-            String[] rawRoots = websterRoot;
-            for (String root : rawRoots) {
-                int wildcard;
-                if ((wildcard = root.indexOf('*')) != -1) {
-                    String prefix = root.substring(0, wildcard);
-                    File prefixFile = new File(prefix);
-                    if (prefixFile.exists()) {
-                        String suffix = (wildcard < (root.length() - 1)) ? root.substring(wildcard + 1) : "";
-                        String[] children = prefixFile.list();
-                        for (String aChildren : children) {
-                            expandedRoots.add(prefix + aChildren + suffix);
-                        }
-                    }
-                    // Eat the root entry if it's wildcarded and doesn't exist
-                } else {
-                    expandedRoots.add(root);
-                }
+    private boolean isAmbiguous(File f) {
+        String name = f.getName();
+        return name.contains("/.");
+    }
+
+    private boolean isGoodRequest(File f) throws IOException {
+        String path = f.getCanonicalPath();
+        String[] roots = expandRoots();
+        for (String root : roots) {
+            if (path.startsWith(root)) {
+                return true;
             }
         }
-        String[] roots;
-        if(!expandedRoots.isEmpty()) {
-            roots = expandedRoots.toArray(new String[expandedRoots.size()]);
-        } else {
-            roots = websterRoot;
+        return false;
+    }
+
+    protected String[] expandRoots() throws IOException {
+        if (expandedRoots.isEmpty()) {
+            for (String root : websterRoot) {
+                File f = new File(root);
+                if (!f.exists()) {
+                    throw new FileNotFoundException(f.getPath());
+                }
+                if (!f.isDirectory()) {
+                    throw new NotDirectoryException(f.getPath());
+                }
+                expandedRoots.add(f.getCanonicalPath());
+            }
         }
-        return(roots);
+        return expandedRoots.toArray(new String[0]);
     }
 
     /*
@@ -606,11 +675,11 @@ public class Webster implements Runnable {
                 break;
             }
         }
-        return(wildcarded);
+        return wildcarded;
     }
 
     void close(Closeable c) {
-        if(c!=null) {
+        if (c != null) {
             try {
                 c.close();
             } catch (IOException e) {
@@ -633,17 +702,19 @@ public class Webster implements Runnable {
             StringBuilder logData = new StringBuilder();
             try {
                 File getFile = parseFileName(fileName);
-                logData.append("Do HEAD: input=")
-                    .append(fileName)
-                    .append(", parsed=")
-                    .append(getFile)
-                    .append(", ");
+                logData.append("Do HEAD: input=").append(fileName).append(", parsed=").append(getFile).append(", ");
                 int fileLength;
                 String header;
-                if(getFile.isDirectory()) {
+                if (!isGoodRequest(getFile)) {
+                    header = "HTTP/1.1 400 Bad Request\r\n\r\n";
+                    logData.append("bad request");
+                } else if(isAmbiguous(getFile)) {
+                    header = "HTTP/1.1 400 Ambiguous segment in URI\r\n\r\n";
+                    logData.append("ambiguous segment");
+                } else if (getFile.isDirectory()) {
                     logData.append("directory located");
-                    String files[] = getFile.list();
-                    for (String file : files) {
+                    String[] files = getFile.list();
+                    for (String file : Objects.requireNonNull(files)) {
                         File f = new File(getFile, file);
                         dirData.append(f.toString().substring(getFile.getParent().length()));
                         dirData.append("\t");
@@ -659,38 +730,36 @@ public class Webster implements Runnable {
                     }
                     fileLength = dirData.length();
                     String fileType = MimeTypes.getProperty("txt");
-                    if(fileType==null)
+                    if (fileType == null)
                         fileType = "application/java";
-                    header = "HTTP/1.1 200 OK\n"+
-                             "Allow: GET\nMIME-Version: 1.0\n"+
-                             "Server: "+SERVER_DESCRIPTION+"\n"+
-                             "Content-Type: "+ fileType+ "\n"+
-                             "Content-Length: "+ fileLength + "\r\n\r\n";
-                } else if(getFile.exists()) {
+                    header = "HTTP/1.1 200 OK\n"
+                            + "Allow: GET\nMIME-Version: 1.0\n"
+                            + "Server: " + SERVER_DESCRIPTION + "\n"
+                            + "Content-Type: " + fileType + "\n"
+                            + "X-Content-Type-Options:\"nosniff\"\n"
+                            + "Content-Length: " + fileLength + "\r\n\r\n";
+                } else if (getFile.exists()) {
                     DataInputStream requestedFile = new DataInputStream(
                         new BufferedInputStream(new FileInputStream(getFile)));
                     fileLength = requestedFile.available();
-                    String fileType = fileName.substring(fileName.lastIndexOf(".") + 1, fileName.length());
+                    String fileType = fileName.substring(fileName.lastIndexOf(".") + 1);
                     fileType = MimeTypes.getProperty(fileType);
                     logData.append("file size: [").append(fileLength).append("]");
                     header = "HTTP/1.1 200 OK\n"
-                             + "Allow: GET\nMIME-Version: 1.0\n"
-                             + "Server: "+SERVER_DESCRIPTION+"\n"
-                             + "Content-Type: "
-                             + fileType
-                             + "\n"
-                             + "Content-Length: "
-                             + fileLength
-                             + "\r\n\r\n";
+                            + "Allow: GET\nMIME-Version: 1.0\n"
+                            + "Server: " + SERVER_DESCRIPTION + "\n"
+                            + "Content-Type: " + fileType + "\n"
+                            + "X-Content-Type-Options:\"nosniff\"\n"
+                            + "Content-Length: " + fileLength + "\r\n\r\n";
                     close(requestedFile);
                 } else {
                     header = "HTTP/1.1 404 Not Found\r\n\r\n";
                     logData.append("not found");
                 }
 
-                if(debug)
+                if (debug)
                     System.out.println(logData.toString());
-                if(logger.isDebugEnabled())
+                if (logger.isDebugEnabled())
                     logger.debug(logData.toString());
 
                 DataOutputStream clientStream = new DataOutputStream(new BufferedOutputStream(client.getOutputStream()));
@@ -725,91 +794,86 @@ public class Webster implements Runnable {
             DataInputStream requestedFile = null;
             try {
                 File getFile = parseFileName(fileName);
-                logData.append("Do GET: input=")
-                    .append(fileName)
-                    .append(", " + "parsed=")
-                    .append(getFile)
-                    .append(", ");
+                logData.append(String.format("Do GET: input=%s, parsed=%s,", fileName, getFile));
                 String header;
-                if(getFile.isDirectory()) {
+                boolean goodRequest = isGoodRequest(getFile);
+                if (!goodRequest) {
+                    header = "HTTP/1.1 400 Bad Request\r\n\r\n";
+                } else if(isAmbiguous(getFile)) {
+                    header = "HTTP/1.1 400 Ambiguous segment in URI\r\n\r\n";
+                    logData.append("ambiguous segment");
+                    goodRequest = false;
+                } else if (getFile.isDirectory()) {
                     logData.append("directory located");
-                    String files[] = getFile.list();
-                    for (String file : files) {
+                    String[] files = getFile.list();
+                    for (String file : Objects.requireNonNull(files)) {
                         File f = new File(getFile, file);
                         dirData.append(f.toString().substring(getFile.getParent().length()));
                         dirData.append("\t");
-                        if (f.isDirectory())
+                        if (f.isDirectory()) {
                             dirData.append("d");
-                        else
+                        } else {
                             dirData.append("f");
-                        dirData.append("\t");
-                        dirData.append(f.length());
-                        dirData.append("\t");
-                        dirData.append(f.lastModified());
-                        dirData.append("\n");
+                        }
+                        dirData.append("\t").append(f.length()).append("\t").append(f.lastModified()).append("\n");
                     }
                     fileLength = dirData.length();
                     String fileType = MimeTypes.getProperty("txt");
-                    if(fileType == null)
+                    if (fileType == null) {
                         fileType = "application/java";
+                    }
                     header = "HTTP/1.1 200 OK\n"
-                             + "Allow: GET\nMIME-Version: 1.0\n"
-                             + "Server: "+SERVER_DESCRIPTION+"\n"
-                             + "Content-Type: "
-                             + fileType
-                             + "\n"
-                             + "Content-Length: "
-                             + fileLength
-                             + "\r\n\r\n";
-                } else if(getFile.exists()) {
+                            + "Allow: GET\nMIME-Version: 1.0\n"
+                            + "Server: " + SERVER_DESCRIPTION + "\n"
+                            + "Content-Type: " + fileType + "\n"
+                            + "X-Content-Type-Options:\"nosniff\"\n"
+                            + "Content-Length: " + fileLength + "\r\n\r\n";
+                } else if (getFile.exists()) {
                     requestedFile = new DataInputStream(new BufferedInputStream(new FileInputStream(getFile)));
                     fileLength = requestedFile.available();
-                    String fileType = fileName.substring(fileName.lastIndexOf(".") + 1, fileName.length());
+                    String fileType = fileName.substring(fileName.lastIndexOf(".") + 1);
                     fileType = MimeTypes.getProperty(fileType);
                     header = "HTTP/1.1 200 OK\n"
-                             + "Allow: GET\nMIME-Version: 1.0\n"
-                             + "Server: "+SERVER_DESCRIPTION+"\n"
-                             + "Content-Type: "
-                             + fileType
-                             + "\n"
-                             + "Content-Length: "
-                             + fileLength
-                             + "\r\n\r\n";
+                            + "Allow: GET\nMIME-Version: 1.0\n"
+                            + "Server: " + SERVER_DESCRIPTION + "\n"
+                            + "Content-Type: " + fileType + "\n"
+                            + "X-Content-Type-Options:\"nosniff\"\n"
+                            + "Content-Length: " + fileLength + "\r\n\r\n";
                 } else {
                     header = "HTTP/1.1 404 Not Found\r\n\r\n";
                 }
-                DataOutputStream clientStream =new DataOutputStream(new BufferedOutputStream(client.getOutputStream()));
+                DataOutputStream clientStream = new DataOutputStream(new BufferedOutputStream(client.getOutputStream()));
                 clientStream.writeBytes(header);
 
-                if(getFile.isDirectory()) {
-                    clientStream.writeBytes(dirData.toString());
-                } else if(getFile.exists() && requestedFile!=null) {
-                    byte[] buffer = new byte[fileLength];
-                    requestedFile.readFully(buffer);
-                    logData.append("file size: [").append(fileLength).append("]");
-                    try {
-                        clientStream.write(buffer);
-                    } catch(Exception e) {
-                        String s = "Sending ["+
-                                   getFile.getAbsolutePath()+"], "+
-                                   "size ["+fileLength+"], "+
-                                   "to client at "+
-                                   "["+
-                                   client.getInetAddress().getHostAddress()+
-                                   "]";
-                        if(logger.isDebugEnabled())
-                            logger.debug(s, e);
-                        if(debug) {
-                            System.out.println(s);
-                            e.printStackTrace();
+                if (goodRequest) {
+                    if (getFile.isDirectory()) {
+                        clientStream.writeBytes(dirData.toString());
+                    } else if (getFile.exists() && requestedFile != null) {
+                        byte[] buffer = new byte[fileLength];
+                        requestedFile.readFully(buffer);
+                        logData.append("file size: [").append(fileLength).append("]");
+                        try {
+                            clientStream.write(buffer);
+                        } catch (Exception e) {
+                            String s = String.format("Sending [%s], size[%s], to client at [%s]",
+                                                     getFile.getAbsolutePath(),
+                                                     fileLength,
+                                                     client.getInetAddress().getHostAddress());
+                            if (logger.isDebugEnabled())
+                                logger.debug(s, e);
+                            if (debug) {
+                                System.out.println(s);
+                                e.printStackTrace();
+                            }
                         }
+                    } else {
+                        logData.append("not found");
                     }
-                } else {
-                    logData.append("not found");
                 }
-                if(debug)
+
+                if (debug)
                     System.out.println(logData.toString());
-                if(logger.isDebugEnabled())
+                if (logger.isDebugEnabled())
                     logger.debug(logData.toString());
                 clientStream.flush();
                 clientStream.close();
@@ -827,10 +891,10 @@ public class Webster implements Runnable {
     }
 
     class PutFile implements Runnable {
-        private Socket client;
-        private String fileName;
-        private Properties rheader;
-        private InputStream inputStream;
+        private final Socket client;
+        private final String fileName;
+        private final Properties rheader;
+        private final InputStream inputStream;
         final int BUFFER_SIZE = 4096;
 
         PutFile(Socket s, String fileName, Properties header, InputStream fromClient) {
@@ -841,7 +905,6 @@ public class Webster implements Runnable {
         }
 
         public void run() {
-
             String s = ignoreCaseProperty(rheader, "Content-Length");
             if (s == null) {
                 try {
@@ -896,7 +959,7 @@ public class Webster implements Runnable {
                         requestedFileOutputStream = new DataOutputStream(new FileOutputStream(putFile));
                         int read;
                         long amountRead = 0;
-                        byte[] buffer = new byte[length < BUFFER_SIZE ? length : BUFFER_SIZE];
+                        byte[] buffer = new byte[Math.min(length, BUFFER_SIZE)];
                         while (amountRead < length) {
                             read = inputStream.read(buffer);
                             requestedFileOutputStream.write(buffer, 0, read);
@@ -947,7 +1010,7 @@ public class Webster implements Runnable {
                     return (props.getProperty(propName));
                 }
             }
-            return (null);
+            return null;
         }
     }
 
@@ -962,27 +1025,37 @@ public class Webster implements Runnable {
 
         public void run() {
             try {
-                File putFile = parseFileName(fileName);
+                File delFile = parseFileName(fileName);
                 String header;
-                if(!putFile.exists()) {
-                    header = "HTTP/1.1 404 File not found\n"
-                             + "Allow: GET\n"
-                             + "MIME-Version: 1.0\n"
-                             +"Server: "+SERVER_DESCRIPTION+"\n"
-                             + "\n\n <H1>404 File not Found</H1>\n"
-                             + "<BR>";
-                } else if(putFile.delete()) {
-                    header = "HTTP/1.1 200 OK\n"
-                             + "Allow: PUT\n"
-                             + "MIME-Version: 1.0\n"
-                             +"Server: "+SERVER_DESCRIPTION+"\n"
-                             + "\n\n <H1>200 File succesfully deleted</H1>\n";
+                if (!isGoodRequest(delFile)) {
+                    header = "HTTP/1.1 400 Bad Request\r\n\r\n";
+                } else if(isAmbiguous(delFile)) {
+                    header = "HTTP/1.1 400 Ambiguous segment in URI\r\n\r\n";
+                }
+                else if (delFile.exists()) {
+                    if (delFile.delete()) {
+                        header = "HTTP/1.1 200 OK\n"
+                                + "Allow: DELETE\n"
+                                + "MIME-Version: 1.0\n"
+                                + "Server: " + SERVER_DESCRIPTION + "\n"
+                                + "\n\n <H1>200 File successfully deleted</H1>\n";
+                    } else {
+                        header = "HTTP/1.1 500 Internal Server Error\n"
+                                + "Allow: DELETE\n"
+                                + "MIME-Version: 1.0\n"
+                                +"Server: " + SERVER_DESCRIPTION + "\n"
+                                + "\n\n <H1>500 File could not be deleted</H1>\n";
+                    }
                 } else {
-                    header = "HTTP/1.1 500 Internal Server Error\n"
-                             + "Allow: PUT\n"
-                             + "MIME-Version: 1.0\n"
-                             +"Server: "+SERVER_DESCRIPTION+"\n"
-                             + "\n\n <H1>500 File could not be deleted</H1>\n";
+                    header = "HTTP/1.1 404 File not found\n"
+                            + "Allow: DELETE\n"
+                            + "MIME-Version: 1.0\n"
+                            +"Server: " + SERVER_DESCRIPTION + "\n"
+                            + "\n\n <H1>404 File not Found</H1>\n"
+                            + "<BR>";
+                }
+                if (logger.isDebugEnabled()) {
+                    logger.debug(header);
                 }
                 DataOutputStream clientStream = new DataOutputStream(new BufferedOutputStream(client.getOutputStream()));
                 clientStream.writeBytes(header);

@@ -1,0 +1,56 @@
+/*
+ * Copyright to the original author or authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+description = 'Module :: Rio Test Infrastructure'
+dependencies {
+    compile project(':rio-lib')
+    compile group: 'org.codehaus.groovy', name: 'groovy-all', version: "${groovyVersion}"
+    compileOnly project(':cybernode-service')
+    compileOnly group: 'junit', name: 'junit', version: "${junitVersion}"
+    compileOnly project(':webster')
+    compileOnly project(':jetty')
+    implementation group: 'org.slf4j', name: 'slf4j-api', version: "${slf4jVersion}"
+    testCompile project(':resolver-aether')
+    testCompile project(':cybernode-service')
+    testCompile group: 'junit', name: 'junit', version: "${junitVersion}"
+    testCompile group: 'org.springframework', name: 'spring-context', version: '5.2.7.RELEASE'
+    testCompile logRuntime
+}
+
+sourceSets {
+    main {
+        java { srcDirs = [] }
+        groovy { srcDirs += ['src/main/java'] }
+    }
+
+}
+
+jar {
+    manifest {
+        attributes("Implementation-Title": "Rio Test",
+                "Implementation-Version": "${project.version}",
+                "Rio-Version" : "${project.version}",
+                "Rio-Build": buildTime
+        )
+    }
+    from(configurations.compileOnly.collect { it.isDirectory() ? it : zipTree(it) }) {
+        include "org/rioproject/tools/**"
+        include "org/rioproject/cybernode/**"
+    }
+}
+
+test {
+    systemProperty 'java.security.policy', policyAll
+}

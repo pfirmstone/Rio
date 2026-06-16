@@ -1,12 +1,12 @@
 /*
  * Copyright to the original author or authors.
- *
+ * 
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
+ * 
+ *         http://www.apache.org/licenses/LICENSE-2.0
+ * 
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -56,9 +56,8 @@ import java.io.IOException;
 import java.rmi.MarshalledObject;
 import java.rmi.NoSuchObjectException;
 import java.rmi.RemoteException;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -81,23 +80,23 @@ public class ServiceProvisioner implements ServiceProvisionDispatcher {
     /** Indicates a JSB cannot be provisioned */
     public static final int BAD_CYBERNODE = 1 << 2;
     /** The Landlord that will manage leases for ServiceInstantiation resources */
-    private LandlordLessor landlord;
+    private final LandlordLessor landlord;
     /** ProvisionEvent sequence number */
-    private AtomicInteger serviceProvisionEventSequenceNumber = new AtomicInteger(0);
+    private final AtomicInteger serviceProvisionEventSequenceNumber = new AtomicInteger(0);
     /** EventRegistration sequence number */
-    private AtomicInteger eventRegistrationSequenceNumber = new AtomicInteger(0);
+    private final AtomicInteger eventRegistrationSequenceNumber = new AtomicInteger(0);
     /** Event source */
-    private Object eventSource;
+    private final Object eventSource;
     /** EventHandler to fire ProvisionFailureEvent notifications */
-    private EventHandler failureHandler;
+    private final EventHandler failureHandler;
     /** Executor for provision processing */
-    private ThreadPoolExecutor provisioningPool;
+    private final ThreadPoolExecutor provisioningPool;
     /** Executor for provision failure event processing */
-    private ThreadPoolExecutor provisionFailurePool;
+    private final ThreadPoolExecutor provisionFailurePool;
     /** Collection of in-process provision attempts */
-    private final List<ServiceElement> inProcess = Collections.synchronizedList(new ArrayList<ServiceElement>());
+    private final List<ServiceElement> inProcess = new CopyOnWriteArrayList<>();
     /** A Watch to measure provision time */
-    private GaugeWatch watch;
+    private final GaugeWatch watch;
     /** Manages pending provision dispatch requests for provision types of auto */
     private final PendingManager pendingMgr;
     /** Manages provision dispatch requests for provision types of station */
@@ -105,7 +104,7 @@ public class ServiceProvisioner implements ServiceProvisionDispatcher {
     /** Manages the selection of ServiceResource objects for provisioning requests */
     private final ServiceResourceSelector selector;
     /** ProxyPreparer for ServiceInstantiator proxies */
-    private ProxyPreparer instantiatorPreparer;
+    private final ProxyPreparer instantiatorPreparer;
     private static final String CONFIG_COMPONENT = "org.rioproject.monitor";
     /** Logger instance */
     private static final Logger logger = LoggerFactory.getLogger(ServiceProvisioner.class);
@@ -126,9 +125,9 @@ public class ServiceProvisioner implements ServiceProvisionDispatcher {
                        final Object eventSource,
                        final EventHandler failureHandler,
                        final GaugeWatch watch) throws Exception {
-        if(config==null)
+        if (config==null)
             throw new IllegalArgumentException("config is null");
-        if(failureHandler==null)
+        if (failureHandler==null)
             throw new IllegalArgumentException("failureHandler is null");
         /* 5 minute default Lease time */
         long DEFAULT_LEASE_TIME = TimeConstants.FIVE_MINUTES;
@@ -244,7 +243,7 @@ public class ServiceProvisioner implements ServiceProvisionDispatcher {
      * @throws RemoteException for comm errors
      */
     EventRegistration register(final MarshalledObject<ServiceBeanInstantiator> sbi,
-                               final MarshalledObject handback,
+                               final MarshalledObject<?> handback,
                                final ResourceCapability resourceCapability,
                                final List<DeployedService> deployedServices,
                                final int serviceLimit,
@@ -259,7 +258,7 @@ public class ServiceProvisioner implements ServiceProvisionDispatcher {
             throw new LeaseDeniedException("Could not load ServiceBeanInstantiator, "+e.getLocalizedMessage());
         }
 
-        if(instantiator instanceof RemoteMethodControl)
+        if (instantiator instanceof RemoteMethodControl)
             instantiator = (ServiceBeanInstantiator)instantiatorPreparer.prepareProxy(instantiator);
         String name;
         try {
@@ -278,7 +277,7 @@ public class ServiceProvisioner implements ServiceProvisionDispatcher {
                                                                  serviceLimit);
         for (LeasedResource lr : landlord.getLeasedResources()) {
             InstantiatorResource ir = (InstantiatorResource)((ServiceResource)lr).getResource();
-            if(ir.equals(resource)) {
+            if (ir.equals(resource)) {
                 throw new LeaseDeniedException("Already registered");
             }
         }
@@ -327,12 +326,12 @@ public class ServiceProvisioner implements ServiceProvisionDispatcher {
                         final List<DeployedService> deployedServices,
                         final int serviceLimit) throws UnknownLeaseException, RemoteException {
         ServiceBeanInstantiator preparedResource = resource;
-        if(resource instanceof RemoteMethodControl)
+        if (resource instanceof RemoteMethodControl)
             preparedResource = (ServiceBeanInstantiator)instantiatorPreparer.prepareProxy(resource);
-        if(logger.isTraceEnabled())
+        if (logger.isTraceEnabled())
             logger.trace("Calling {}", selector.getClass().getName());
         ServiceResource[] svcResources = selector.getServiceResources();
-        if(svcResources.length == 0) {
+        if (svcResources.length == 0) {
             logger.warn("{} is updating resource information, but we don't have any registered Cybernodes. " +
                         "Force removal of all Leases", resource.getName());
             landlord.removeAll();
@@ -340,16 +339,16 @@ public class ServiceProvisioner implements ServiceProvisionDispatcher {
         }
         boolean updated = false;
         ServiceResource couldNotEnsureLease = null;
-        for(ServiceResource svcResource : svcResources) {
+        for (ServiceResource svcResource : svcResources) {
             InstantiatorResource ir = (InstantiatorResource) svcResource.getResource();
             logger.trace("Checking for InstantiatorResource match");
-            if(ir.getInstantiator().equals(preparedResource)) {
+            if (ir.getInstantiator().equals(preparedResource)) {
                 logger.trace("Update from {}, current serviceCount {}, serviceLimit {}",
                              ir.getName(),
                              deployedServices.size(),
                              serviceLimit);
                 logger.trace("Matched InstantiatorResource");
-                if(!landlord.ensure(svcResource)) {
+                if (!landlord.ensure(svcResource)) {
                     couldNotEnsureLease = svcResource;
                     break;
                 }
@@ -375,12 +374,12 @@ public class ServiceProvisioner implements ServiceProvisionDispatcher {
             }
         }
 
-        if(couldNotEnsureLease!=null) {
+        if (couldNotEnsureLease!=null) {
             selector.dropServiceResource(couldNotEnsureLease);
             throw new UnknownLeaseException("Could not ensure lease. Lease expiration: "+couldNotEnsureLease.getExpiration()+", " +
                                             "current time: "+System.currentTimeMillis());
         }
-        if(!updated) {
+        if (!updated) {
             logger.warn("Update failed, no matching registration found for {}", resource.getName());
             throw new UnknownLeaseException("Update failed, no matching registration found");
         }
@@ -409,12 +408,12 @@ public class ServiceProvisioner implements ServiceProvisionDispatcher {
      * @param index Index of the ServiceElement in the pending collection
      */
     public void dispatch(final ProvisionRequest request, final ServiceResource resource, final long index) {
-        if(terminating || terminated) {
+        if (terminating || terminated) {
             logger.info("Request to dispatch {} ignored, utility has terminated", LoggingUtil.getLoggingName(request));
             return;
         }
         try {
-            if(resource != null) {
+            if (resource != null) {
                 inProcess.add(request.getServiceElement());
                 provisioningPool.execute(new ProvisionTask(getServiceProvisionContext(request, resource),
                                                            pendingMgr,
@@ -424,7 +423,7 @@ public class ServiceProvisioner implements ServiceProvisionDispatcher {
 
                 /* If we have a ServiceProvisionListener, notify the
                  * listener */
-                if(request.getServiceProvisionListener()!=null) {
+                if (request.getServiceProvisionListener()!=null) {
                     try {
                         request.getServiceProvisionListener().failed(request.getServiceElement(), true);
                     } catch(NoSuchObjectException e) {
@@ -437,15 +436,15 @@ public class ServiceProvisioner implements ServiceProvisionDispatcher {
                     }
                 }
                 /* If this is not the result of a relocation request, add to the pending testManager */
-                if(!request.getType().equals(ProvisionRequest.Type.RELOCATE)) {
+                if (!request.getType().equals(ProvisionRequest.Type.RELOCATE)) {
                     pendingMgr.addProvisionRequest(request, index);
                     logger.debug("Wrote [{}] to {}", LoggingUtil.getLoggingName(request), pendingMgr.getType());
                     pendingMgr.dumpCollection();
                 }
-                processProvisionFailure(new ProvisionFailureEvent(eventSource,
+                /*processProvisionFailure(new ProvisionFailureEvent(eventSource,
                                                                   request.getServiceElement(),
                                                                   request.getFailureReasons(),
-                                                                  null));
+                                                                  null));*/
             }
         } catch(Throwable t) {
             logger.warn("Dispatching ProvisionRequest", t);

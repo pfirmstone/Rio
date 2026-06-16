@@ -1,0 +1,234 @@
+/*
+ * Copyright to the original author or authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import org.apache.tools.ant.filters.ReplaceTokens
+import org.codehaus.groovy.runtime.GStringImpl
+
+/* Build a distribution  */
+description = 'Module :: Rio Distribution'
+
+apply plugin: 'base'
+apply plugin: 'maven'
+apply plugin: 'maven-publish'
+
+/* Declare a custom configuration for distribution only dependencies */
+configurations {
+    distribution
+    distribution.extendsFrom(runtime)
+}
+
+dependencies {
+    distribution "org.codehaus.groovy:groovy-all:${groovyVersion}"
+    distribution "org.apache.river:start:$riverVersion"
+    distribution "org.apache.river:reggie:$riverVersion"
+    distribution "org.apache.river:reggie-dl:$riverVersion"
+    distribution "net.jini.lookup:serviceui:$riverVersion"
+    distribution "org.slf4j:jul-to-slf4j:$slf4jVersion"
+    distribution "ch.qos.logback:logback-classic:$logbackVersion"
+}
+
+ext {
+    distDir = "${project.buildDir.path}/rio-${project.version}"
+}
+
+/*
+ * This will gather up and organize subproject dependencies, and resolve distribution dependencies
+ */
+task gatherDeps() {
+    description = "Gather up and organize distribution dependencies"
+
+    doLast {
+        File dir = file("${distDir}")
+        if (dir.exists()) {
+            delete dir
+            println "Removed distribution $dir"
+        }
+        println "Creating distribution $dir"
+
+        /* Copy over distribution dependencies */
+        project.configurations['distribution'].files.each {file ->
+            if (filter(file.name)) {
+                String dest
+                if (file.path.contains("-dl") || (file.path.contains("ui"))) {
+                    dest = "lib-dl"
+                } else if (file.path.contains("logback") || file.path.contains("slf4j")) {
+                    dest = "lib/logging"
+                } else {
+                    dest = "lib"
+                }
+                copy {
+                    from file
+                    into "$distDir/$dest"
+                }
+            }
+        }
+    }
+}
+
+static boolean filter(artifact) {
+    def exclusions = ["rio-int-tests", "distribution"]
+    boolean include = true
+    for (String exclude : exclusions) {
+        if (artifact.contains(exclude))  {
+            include = false
+            break
+        }
+    }
+    include
+}
+
+task createDistributionIfNotExist() {
+    if (!new File("$distDir").exists()) {
+        dependsOn(":distribution:distribution")
+    }
+}
+
+task createDistribution(dependsOn: [":rio-platform:install",
+                                    ":rio-start:install",
+                                    ":rio-lib:install",
+                                    ":resolver-aether:install",
+                                    ":resolver-project:install",
+                                    ":cybernode-service:install",
+                                    ":cybernode-ui:install",
+                                    ":monitor-service:install",
+                                    ":rio-cli:install",
+                                    ":rio-ui:install",
+                                    //":rio-test:install",
+                                    ":jetty:install",
+                                    ":watch-ui:install",
+                                    gatherDeps]) {
+    description 'Creates a Rio distribution'
+    doLast {
+        File rioLibDir = file("$distDir/lib/")
+        File rioDlDir = file("$distDir/lib-dl")
+        File rioLoggingDir = file("$distDir/lib/logging")
+        File rioResolverDir = file("$distDir/lib/resolver")
+
+        rootProject.subprojects.each { project ->
+            boolean include = filter(project.path)
+            if (include) {
+                //println "Processing ${project.path}"
+                project.tasks.withType(Jar).each { jar ->
+                    File target
+                    String name = jar.archiveName
+                    if (!name.contains("sources") && !name.contains("javadoc")) {
+                        if (name.indexOf('dl') > 0
+                                || name.startsWith('cybernode-ui')
+                                || name.startsWith('watch-ui')
+                                || name.startsWith('serviceui')
+                                || name.indexOf('proxy') > 0) {
+                            target = rioDlDir
+                        } else if (name.contains("resolver")) {
+                            target = rioResolverDir
+                        } else if (name.contains("logging")) {
+                            target = rioLoggingDir
+                        } else {
+                            target = rioLibDir
+                        }
+                        if (file(jar.archivePath).exists()) {
+                            copy {
+                                from jar.archivePath
+                                into target
+                            }
+                        } else {
+                            println "Archive excluded ${jar.archivePath}"
+                        }
+                    }
+                }
+            }
+        }
+
+        copy {
+            from("${project.rootProject.projectDir}") {
+                include "LICENSE.txt"
+            }
+            into "${distDir}"
+        }
+
+        copy {
+            from("${project.projectDir}/src/main") {
+                include "config/**"
+                include "policy/**"
+            }
+            into "${distDir}"
+        }
+
+        copy {
+            from("${project.rootProject.projectDir}/bin") {
+                include "**"
+                fileMode = 0755
+                filter(ReplaceTokens,
+                        tokens: [rioV: project.version, groovyV: groovyVersion, riverV: riverVersion])
+            }
+            into "${distDir}/bin"
+        }
+    }
+}
+
+task distribution(type: Zip, dependsOn: [createDistribution]) {
+    description 'Creates a Rio distribution archive'
+    doFirst {
+        println "Zipping distribution rio-${version} -> rio-${version}.zip"
+    }
+    //compression = Compression.GZIP // for Tar type
+    baseName = "rio"
+    destinationDir = project.buildDir
+    from("${project.buildDir.path}/rio-${version}")
+    into "rio-${version}"
+    doLast {
+        println "Complete"
+    }
+}
+
+//archivesBaseName = "distribution"
+def rioDistribution = file("build/rio-${version}.zip")
+artifacts {
+    archives file: rioDistribution, name: 'rio', type: 'zip', builtBy: distribution
+}
+
+publishing {
+    repositories {
+        maven {
+            url = uri("https://repo.repsy.io/mvn/dreedy/maven")
+            credentials {
+                username = project.findProperty("repsy.user") ?: System.getenv("USERNAME")
+                password = project.findProperty("repsy.key") ?: System.getenv("TOKEN")
+            }
+        }
+    }
+    publications {
+        distribution(MavenPublication) {
+            artifact rioDistribution
+            groupId = project.group
+            artifactId = project.archivesBaseName
+            version = project.version
+            pom {
+                description = project.description
+                name = project.name
+                url = 'https://github.com/dreedyman/Rio'
+                licenses {
+                    license {
+                        name = "The Apache Software License, Version 2.0"
+                        url = "http://www.apache.org/licenses/LICENSE-2.0.txt"
+                    }
+                }
+                scm {
+                    url = "https://github.com/dreedyman/Rio"
+                }
+            }
+        }
+    }
+}

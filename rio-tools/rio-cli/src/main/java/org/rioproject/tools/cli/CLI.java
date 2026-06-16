@@ -1,12 +1,12 @@
 /*
- * Copyright 2008 the original author or authors.
- *
+ * Copyright to the original author or authors.
+ * 
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
+ * 
+ *         http://www.apache.org/licenses/LICENSE-2.0
+ * 
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -31,6 +31,7 @@ import org.rioproject.impl.discovery.ReggieStat;
 import org.rioproject.impl.jmx.JMXUtil;
 import org.rioproject.impl.service.ServiceStopHandler;
 import org.rioproject.rmi.RegistryUtil;
+import org.rioproject.security.SecureEnv;
 import org.rioproject.tools.webster.Webster;
 import org.rioproject.util.TimeUtil;
 import org.slf4j.Logger;
@@ -43,8 +44,6 @@ import java.io.*;
 import java.net.InetAddress;
 import java.net.MalformedURLException;
 import java.rmi.ConnectException;
-import java.rmi.RemoteException;
-import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
@@ -77,8 +76,8 @@ public class CLI {
     String hostName;
     String hostAddress;
     boolean commandLine = true;
-    final Map<String, Object> settings = new HashMap<String, Object>();
-    protected final Map<String, OptionHandlerDesc> optionMap = new HashMap<String, OptionHandlerDesc>();
+    final Map<String, Object> settings = new HashMap<>();
+    protected final Map<String, OptionHandlerDesc> optionMap = new HashMap<>();
     String homeDir;
     File currentDir;
     File rioLog;
@@ -175,7 +174,7 @@ public class CLI {
                       "multicast groups to discover.\n");
         buffer.append("\t\t\t\t\tIf \"all\" is provided, this " +
                       "will be translated to\n");
-        buffer.append("\t\t\t\t\tDiscoveryGroupManagment.ALL_GROUPS\n");
+        buffer.append("\t\t\t\t\tDiscoveryGroupManagement.ALL_GROUPS\n");
         buffer.append("\tlocators=jini://host[:port]\tComma separated names " +
                       "of lookup locators to discover\n");
         buffer.append("\tdiscoveryTimeout=millis" +
@@ -206,9 +205,9 @@ public class CLI {
          * name lengths */
         int longest = 0;
         int col = 0;
-        Map<Integer, Integer> columnLengths = new HashMap<Integer, Integer>();
+        Map<Integer, Integer> columnLengths = new HashMap<>();
         for(int i=0; i<optionNames.length; i++) {
-            longest = optionNames[i].length()>longest?optionNames[i].length():longest;
+            longest = Math.max(optionNames[i].length(), longest);
             if(i > 0 && i%5 == 0) {
                 columnLengths.put(col, longest);
                 col=1;
@@ -238,8 +237,8 @@ public class CLI {
         String output;
         StringBuilder buffer = new StringBuilder();
         Object[] array = toArray(s);
-        for(int i=0; i<array.length; i++) {
-            if(i>0)
+        for (int i = 0; i < array.length; i++) {
+            if (i > 0)
                 buffer.append(" ");
             buffer.append("%-").append(columnLengths.get(i + 1) + 1).append("s");
         }
@@ -607,13 +606,13 @@ public class CLI {
         }
 
         void destroyFromRegistry(final PrintStream out) {
-            List<Registry> rmiRegistries = new ArrayList<Registry>();
+            List<Registry> rmiRegistries = new ArrayList<>();
             int port = RegistryUtil.DEFAULT_PORT;
             for(int i=0; i< RegistryUtil.getRegistryRetries(); i++) {
                 try {
-                    Registry registry = LocateRegistry.getRegistry(port++);
+                    Registry registry = RegistryUtil.getRegistry(port++);
                     rmiRegistries.add(registry);
-                } catch (RemoteException e) {
+                } catch (Exception e) {
                     //;
                 }
             }
@@ -686,7 +685,7 @@ public class CLI {
                 throw new IllegalArgumentException("Must have an output PrintStream");
             StringBuilder buffer = new StringBuilder();
             StringTokenizer tok = new StringTokenizer(input);
-            if(tok.countTokens()>1) {
+            if (tok.countTokens() > 1) {
                 while(tok.hasMoreTokens()) {
                     String token = tok.nextToken();
                     if(token.equals("set"))
@@ -695,14 +694,14 @@ public class CLI {
                         out.println("You must specify a value for "+token);
                         break;
                     }
-                    if(token.equals(DEPLOY_BLOCK)) {
+                    if (token.equals(DEPLOY_BLOCK)) {
                         String block = tok.nextToken();
                         if(block.equalsIgnoreCase("true") ||
                            block.equalsIgnoreCase("yes"))
                             instance.settings.put(DEPLOY_BLOCK, Boolean.TRUE);
                         else
                             instance.settings.put(DEPLOY_BLOCK, Boolean.FALSE);
-                    } else if(token.equals(LIST_LENGTH)) {
+                    } else if (token.equals(LIST_LENGTH)) {
                         String listLength = tok.nextToken();
                         try {
                             int i = Integer.parseInt(listLength);
@@ -710,7 +709,7 @@ public class CLI {
                         } catch (NumberFormatException e) {
                             return("Invalid "+LIST_LENGTH+" "+listLength);
                         }
-                    } else if(token.equals(DEPLOY_WAIT)) {
+                    } else if (token.equals(DEPLOY_WAIT)) {
                         String timeout = tok.nextToken();
                         try {
                             long l = Long.parseLong(timeout);
@@ -719,7 +718,7 @@ public class CLI {
                             return("Invalid deploy-wait "+timeout);
                         }
 
-                    } else if(token.equals(GROUPS)) {
+                    } else if (token.equals(GROUPS)) {
                         String value = tok.nextToken();
                         String[] groups;
                         if(value.equalsIgnoreCase("all_groups") || value.equalsIgnoreCase("all")) {
@@ -739,7 +738,7 @@ public class CLI {
                                             t.getMessage());
                             }
                         }
-                    } else if(token.equals(LOCATORS)) {
+                    } else if (token.equals(LOCATORS)) {
                         String locator = tok.nextToken();
                         DiscoveryManagement dMgr =
                             instance.getServiceFinder().getDiscoveryManagement();
@@ -759,15 +758,12 @@ public class CLI {
                         }
                     } else if(token.equals(SYS_PROPS)) {
                         String property = tok.nextToken();
-                        StringTokenizer tok1 =
-                            new StringTokenizer(property, "= ");
-                        if(tok1.countTokens()<2)
-                            return("Invalid system property definition "+
-                                   property);
+                        StringTokenizer tok1 = new StringTokenizer(property, "= ");
+                        if (tok1.countTokens() < 2)
+                            return("Invalid system property definition " + property);
                         String name = tok1.nextToken();
                         String value = tok1.nextToken();
-                        Properties props =
-                            (Properties)instance.settings.get(SYS_PROPS);
+                        Properties props = (Properties)instance.settings.get(SYS_PROPS);
                         props.put(name, value);
                         System.setProperty(name, value);
                         instance.settings.put(SYS_PROPS, props);
@@ -1297,7 +1293,7 @@ public class CLI {
         String rioHome = System.getProperty("rio.home");
         if(rioHome == null)
             throw new RuntimeException("RIO_HOME must be set");
-        props.put("java.protocol.handler.pkgs", "net.jini.url");
+        props.put("java.protocol.handler.pkgs", System.getProperty("java.protocol.handler.pkgs"));
         Properties addedProps = getConfiguredSystemProperties();
         props.putAll(addedProps);
         Properties sysProps = System.getProperties();
@@ -1577,7 +1573,8 @@ public class CLI {
         }
     }
        
-    public static void main(final String[] args) {
+    public static void main(final String[] args) throws Exception {
+        SecureEnv.setup();
         ensureSecurityManager();
         try {
             initCLI(args);

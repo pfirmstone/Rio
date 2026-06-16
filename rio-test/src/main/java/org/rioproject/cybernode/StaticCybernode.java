@@ -1,12 +1,12 @@
 /*
  * Copyright to the original author or authors.
- *
+ * 
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
+ * 
+ *         http://www.apache.org/licenses/LICENSE-2.0
+ * 
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -31,7 +31,6 @@ import org.rioproject.impl.util.StringUtil;
 import org.rioproject.opstring.*;
 import org.rioproject.resolver.Artifact;
 import org.rioproject.resolver.ResolverHelper;
-import org.rioproject.start.LogManagementHelper;
 import org.rioproject.url.artifact.ArtifactURLStreamHandlerFactory;
 
 import java.io.File;
@@ -67,8 +66,7 @@ import java.util.*;
  */
 public class StaticCybernode {
     private ServiceBeanContainerImpl instantiator;
-    //private final Map<Object, Object> serviceMap = new HashMap<Object, Object>();
-    private final Set<ActivatedService> serviceSet = new HashSet<ActivatedService>();
+    private final Set<ActivatedService> serviceSet = new HashSet<>();
 
     static {
         Policy.setPolicy(
@@ -87,7 +85,6 @@ public class StaticCybernode {
     }
 
     public StaticCybernode()  {
-        LogManagementHelper.setup();
         try {
             new URL("artifact:org.rioproject");
         } catch (MalformedURLException e) {
@@ -126,7 +123,7 @@ public class StaticCybernode {
      * @throws org.rioproject.deploy.ServiceBeanInstantiationException If the service bean cannot be created
      */
     public Object activate(String classname) throws ServiceBeanInstantiationException {
-        if(classname==null)
+        if (classname == null)
             throw new IllegalArgumentException("classname must not be null");
         ServiceBeanInstance instance =
             instantiator.activate(makeServiceElement(classname),
@@ -152,13 +149,13 @@ public class StaticCybernode {
      * parsing errors or the bean(s) cannot be created.
      */
     public Map<String, Object> activate(File opstring, String... beans) throws Exception {
-         if(opstring==null)
+         if (opstring == null)
             throw new IllegalArgumentException("opstring file must not be null");
-        Map<String, Object> map = new HashMap<String, Object>();
+        Map<String, Object> map = new HashMap<>();
         OpStringLoader opl = new OpStringLoader();
         OperationalString[] opStrings = opl.parseOperationalString(opstring);
-        for(OperationalString ops : opStrings) {
-            if(beans!=null && beans.length>0)
+        for (OperationalString ops : opStrings) {
+            if (beans != null && beans.length > 0)
                 map.putAll(activate(ops, beans));
             else
                 map.putAll(activate(ops));
@@ -180,17 +177,17 @@ public class StaticCybernode {
      */
     @SuppressWarnings("unused")
     public Map<String, Object> activate(Artifact artifact, String... beans) throws Exception {
-        if(artifact==null)
+        if (artifact == null)
             throw new IllegalArgumentException("artifact must not be null");
         URL opStringURL = ResolverHelper.getResolver().getLocation(artifact.getGAV(), "oar");
-        if(opStringURL==null)
+        if (opStringURL == null)
             throw new OperationalStringException("Artifact "+artifact+" not resolvable");
         OAR oar = new OAR(new File(opStringURL.toURI()));
         OperationalString[] opStrings = oar.loadOperationalStrings();
-        Map<String, Object> map = new HashMap<String, Object>();
+        Map<String, Object> map = new HashMap<>();
 
-        for(OperationalString ops : opStrings) {
-            if(beans!=null && beans.length>0)
+        for (OperationalString ops : opStrings) {
+            if (beans != null && beans.length>0)
                 map.putAll(activate(ops, beans));
             else
                 map.putAll(activate(ops));
@@ -211,17 +208,17 @@ public class StaticCybernode {
      */
     public Map<String, Object> activate(OperationalString opstring, String... beans)
         throws ServiceBeanInstantiationException {
-        if(opstring==null)
+        if (opstring == null)
             throw new IllegalArgumentException("opstring must not be null");
-        Map<String, Object> map = new HashMap<String, Object>();
-        for(ServiceElement elem : opstring.getServices()) {
-            for(String bean : beans) {
-                if(elem.getName().equals(bean)) {
+        Map<String, Object> map = new HashMap<>();
+        for (ServiceElement elem : opstring.getServices()) {
+            for (String bean : beans) {
+                if (elem.getName().equals(bean)) {
                     map.put(elem.getName(), instantiateBean(elem));
                 }
             }
         }
-        for(OperationalString nested : opstring.getNestedOperationalStrings()) {
+        for (OperationalString nested : opstring.getNestedOperationalStrings()) {
             activate(nested, beans);
         }
         return map;
@@ -238,8 +235,8 @@ public class StaticCybernode {
      */
     public Map<String, Object> activate(OperationalString opstring)
         throws ServiceBeanInstantiationException {
-        Map<String, Object> map = new HashMap<String, Object>();
-        for(ServiceElement elem : opstring.getServices()) {
+        Map<String, Object> map = new HashMap<>();
+        for (ServiceElement elem : opstring.getServices()) {
             map.put(elem.getName(), instantiateBean(elem));
         }
         return map;
@@ -253,7 +250,7 @@ public class StaticCybernode {
      */
     public void deactivate(Object impl)  {
         ActivatedService a = getActivatedService(impl);
-        if(a!=null) {
+        if (a != null) {
             a.delegate.terminate();
             a.proxy = null;
             a.impl = null;
@@ -276,17 +273,17 @@ public class StaticCybernode {
      * @throws IllegalArgumentException if the impl parameter is null
      */
     public Object getServiceProxy(Object impl)  {
-        if(impl==null)
+        if (impl == null)
             throw new IllegalArgumentException("impl must not be null");
         ActivatedService a = getActivatedService(impl);
-        return a==null?null:a.proxy;
+        return a == null ? null : a.proxy;
     }
 
     private ActivatedService getActivatedService(Object impl) {
         ActivatedService activatedService = null;
         synchronized (serviceSet) {
-            for(ActivatedService a : serviceSet) {
-                if(a.impl.equals(impl)) {
+            for (ActivatedService a : serviceSet) {
+                if (a.impl.equals(impl)) {
                     activatedService = a;
                     break;
                 }
@@ -296,7 +293,7 @@ public class StaticCybernode {
     }
 
     private Object instantiateBean(ServiceElement elem) throws ServiceBeanInstantiationException {
-        if(elem.forkService())
+        if (elem.forkService())
             throw new ServiceBeanInstantiationException("The StaticCybernode does not " +
                                                         "support the instantiation of a " +
                                                         "service declared to be forked");
@@ -320,7 +317,7 @@ public class StaticCybernode {
         ServiceBeanConfig sbc = new ServiceBeanConfig();
         String name = implClass;
         int ndx = implClass.lastIndexOf(".");
-        if(ndx>0)
+        if (ndx > 0)
             name = implClass.substring(ndx+1);
         sbc.setName(name);
         elem.setServiceBeanConfig(sbc);
@@ -391,7 +388,7 @@ public class StaticCybernode {
      * <tt>opstring-file</tt> with optional <tt>bean-names</tt> 
      */
     public static void main(String... args) {
-        if(args.length==0) {
+        if (args.length == 0) {
             StringBuilder sb = new StringBuilder();
             sb.append("Usage: \n");
             sb.append("\t")
@@ -402,12 +399,12 @@ public class StaticCybernode {
         }
         try {
             StaticCybernode sbc = new StaticCybernode();
-            List<String> options = new ArrayList<String>(Arrays.asList(args));
+            List<String> options = new ArrayList<>(Arrays.asList(args));
             String option = options.get(0);
-            if(option.endsWith(".xml") || option.endsWith(".groovy")) {
+            if (option.endsWith(".xml") || option.endsWith(".groovy")) {
                 options.remove(option);
                 String[] beans = null;
-                if(!options.isEmpty())
+                if (!options.isEmpty())
                     beans = parseBeans(options.get(0));
                 sbc.activate(new File(args[0]), beans);
             }

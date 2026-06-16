@@ -1,12 +1,12 @@
 /*
  * Copyright to the original author or authors.
- *
+ * 
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
+ * 
+ *         http://www.apache.org/licenses/LICENSE-2.0
+ * 
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -36,11 +36,11 @@ import java.util.concurrent.TimeUnit;
  * Use DeployHandlers to provide hot deployment capability
  */
 public class DeployHandlerMonitor {
-    private DeployHandler[] deployHandlers;
-    private ScheduledExecutorService deployExecutor;
+    private final DeployHandler[] deployHandlers;
+    private final ScheduledExecutorService deployExecutor;
     private long lastRecordedTime;
-    private OpStringManagerController opStringMangerController;
-    private DeployAdmin deployAdmin;
+    private final OpStringManagerController opStringMangerController;
+    private final DeployAdmin deployAdmin;
     static Logger logger = LoggerFactory.getLogger(DeployHandlerMonitor.class.getName());
 
     public DeployHandlerMonitor(DeployHandler[] deployHandlers,
@@ -54,15 +54,13 @@ public class DeployHandlerMonitor {
         lastRecordedTime = System.currentTimeMillis();
         deployExecutor = Executors.newSingleThreadScheduledExecutor();
 
-        deployExecutor.scheduleAtFixedRate(new Runnable() {
-                                                  public void run() {
-                                                      processDeployHandlers(new Date(lastRecordedTime));
-                                                      lastRecordedTime = System.currentTimeMillis();
-                                                  }
-                                              },
-                                              0,
-                                              deployScan,
-                                              TimeUnit.MILLISECONDS);
+        deployExecutor.scheduleAtFixedRate(() -> {
+                                               processDeployHandlers(new Date(lastRecordedTime));
+                                               lastRecordedTime = System.currentTimeMillis();
+                                           },
+                                           0,
+                                           deployScan,
+                                           TimeUnit.MILLISECONDS);
     }
 
     public void terminate() {

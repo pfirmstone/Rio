@@ -1,12 +1,12 @@
 /*
  * Copyright to the original author or authors.
- *
+ * 
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
+ * 
+ *         http://www.apache.org/licenses/LICENSE-2.0
+ * 
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -37,8 +37,8 @@ public class ResolverConfigTest {
     private String artifactFileName = "darkside-deathstar-2.0-deploy.config";
 
     @Before
-    public void setup() throws IOException {
-        File repo = new File(System.getProperty("user.dir")+"/target/repo");
+    public void setup() throws Exception {
+        File repo = new File(System.getProperty("user.dir")+"/build/repo");
         repo.mkdirs();
 
         File resolvedArtifactDir = new File(Repository.getLocalRepository(), repoPath);
@@ -72,7 +72,7 @@ public class ResolverConfigTest {
     public void resolveConfig() throws ResolverException, URISyntaxException {
         File config = new File(System.getProperty("user.dir") +
                                "/src/test/resources/config/testResolverConfig.groovy");
-        File target = new File(System.getProperty("user.dir"), "target");
+        File target = new File(System.getProperty("user.dir"), "build/libs");
         File resolverJar = null;
         for(File f : target.listFiles()) {
             if(f.getName().startsWith("resolver-aether")) {

@@ -1,12 +1,12 @@
 /*
- * Copyright 2010 to the original author or authors.
- *
+ * Copyright to the original author or authors.
+ * 
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
+ * 
+ *         http://www.apache.org/licenses/LICENSE-2.0
+ * 
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -27,7 +27,7 @@ public class Utils {
         sb.append("<settings xmlns=\"http://maven.apache.org/SETTINGS/1.0.0\"").append("\n");
         sb.append("    xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"").append("\n");
         sb.append("    xsi:schemaLocation=\"http://maven.apache.org/SETTINGS/1.0.0 http://maven.apache.org/xsd/settings-1.0.0.xsd\">").append("\n");
-		sb.append("    <localRepository>target/test-repo/</localRepository> ").append("\n");
+		sb.append("    <localRepository>build/test-repo/</localRepository> ").append("\n");
         sb.append("    <profiles>").append("\n");
         sb.append("        <profile>").append("\n");
         sb.append("            <id>p1</id>").append("\n");
@@ -37,7 +37,17 @@ public class Utils {
         sb.append("            <repositories>").append("\n");
         sb.append("                <repository>").append("\n");
         sb.append("                    <id>rio</id>").append("\n");
-        sb.append("                    <url>http://www.rio-project.org/maven2</url>").append("\n");
+        sb.append("                    <url>https://repo.repsy.io/mvn/dreedy/maven</url>").append("\n");
+        sb.append("                    <releases>").append("\n");
+        sb.append("                        <enabled>true</enabled>").append("\n");
+        sb.append("                    </releases>").append("\n");
+        sb.append("                    <snapshots>").append("\n");
+        sb.append("                        <enabled>true</enabled>").append("\n");
+        sb.append("                    </snapshots>").append("\n");
+        sb.append("                </repository>").append("\n");
+        sb.append("                <repository>").append("\n");
+        sb.append("                    <id>central</id>").append("\n");
+        sb.append("                    <url>https://repo.maven.apache.org/maven2</url>").append("\n");
         sb.append("                    <releases>").append("\n");
         sb.append("                        <enabled>true</enabled>").append("\n");
         sb.append("                    </releases>").append("\n");
@@ -76,7 +86,7 @@ public class Utils {
     public static String getMirroredURL() {
         StringBuilder builder = new StringBuilder();
         //builder.append("file://").append(System.getProperty("user.dir")).append(File.separator).append("target");
-        builder.append("http://repo1.maven.org/maven2");
+        builder.append("https://repo1.maven.org/maven2");
         return builder.toString();
     }
     public static void writeLocalM2RepoSettingsWithMirror() {
@@ -84,7 +94,7 @@ public class Utils {
         sb.append("<settings xmlns=\"http://maven.apache.org/SETTINGS/1.0.0\"").append("\n");
         sb.append("    xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"").append("\n");
         sb.append("    xsi:schemaLocation=\"http://maven.apache.org/SETTINGS/1.0.0 http://maven.apache.org/xsd/settings-1.0.0.xsd\">").append("\n");
-        sb.append("    <localRepository>target/test-repo/</localRepository> ").append("\n");
+        sb.append("    <localRepository>build/test-repo/</localRepository> ").append("\n");
         sb.append("    <mirrors>").append("\n");
         sb.append("        <mirror>").append("\n");
         sb.append("            <id>all</id>").append("\n");
@@ -111,7 +121,7 @@ public class Utils {
         sb.append("                </repository>").append("\n");
         sb.append("                <repository>").append("\n");
         sb.append("                    <id>rio</id>").append("\n");
-        sb.append("                    <url>http://www.rio-project.org/maven2</url>").append("\n");
+        sb.append("                    <url>https://repo.repsy.io/mvn/dreedy/maven</url>").append("\n");
         sb.append("                    <releases>").append("\n");
         sb.append("                        <enabled>true</enabled>").append("\n");
         sb.append("                    </releases>").append("\n");

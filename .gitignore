@@ -1,10 +1,16 @@
 .gitignore
-.idea/*
+.idea/
+.idea/vcs.xml
+.gradle
+
+build/
 ###################
 # Maven target directories
 ###################
 target/
 docs/
+deploy/
+rio-int-tests/logs/
 rio-test/logs/
 rio-test/test.oar
 rio-test/test-repo/

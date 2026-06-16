@@ -1,12 +1,12 @@
 /*
  * Copyright to the original author or authors.
- *
+ * 
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
+ * 
+ *         http://www.apache.org/licenses/LICENSE-2.0
+ * 
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -35,7 +35,7 @@ import java.util.Set;
  */
 public class FlatDirectoryWorkspaceReader implements FlatDirectoryReader {
     private final File localPomGenerationDir;
-    private final Set<File> directories = new HashSet<File>();
+    private final Set<File> directories = new HashSet<>();
     private static final Logger logger = LoggerFactory.getLogger(FlatDirectoryWorkspaceReader.class);
 
     public FlatDirectoryWorkspaceReader() {
@@ -47,6 +47,11 @@ public class FlatDirectoryWorkspaceReader implements FlatDirectoryReader {
         if(directories!=null) {
             this.directories.addAll(directories);
         }
+    }
+
+    @Override
+    public Collection<File> getDirectories() {
+        return this.directories;
     }
 
     @Override public ArtifactResult findArtifact(Artifact artifact) {

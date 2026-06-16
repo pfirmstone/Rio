@@ -1,12 +1,12 @@
 /*
  * Copyright to the original author or authors.
- *
+ * 
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
+ * 
+ *         http://www.apache.org/licenses/LICENSE-2.0
+ * 
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -21,7 +21,8 @@ import net.jini.config.Configuration;
 import net.jini.config.ConfigurationException;
 import net.jini.config.ConfigurationProvider;
 import net.jini.config.EmptyConfiguration;
-import org.rioproject.config.RioProperties;
+import org.rioproject.start.config.RioProperties;
+import org.rioproject.start.descriptor.RioServiceDescriptor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -76,7 +77,6 @@ import java.util.List;
 public class ServiceStarter {
     static {
         RioProperties.load();
-        LogManagementHelper.checkConfigurationReset();
     }
     /**
      * Component name for service starter configuration entries
@@ -89,7 +89,7 @@ public class ServiceStarter {
     /**
      * Array of strong references to transient services
      */
-    private static final List<Object> transientServiceRefs = new ArrayList<Object>();
+    private static final List<Object> transientServiceRefs = new ArrayList<>();
     /**
      * Object returned by {@link ServiceStarter#start}
      */
@@ -109,12 +109,7 @@ public class ServiceStarter {
 
         @Override
         public String toString() {
-            final StringBuilder sb = new StringBuilder();
-            sb.append("ServiceReference");
-            sb.append("{proxy=").append(proxy);
-            sb.append(", impl=").append(impl);
-            sb.append('}');
-            return sb.toString();
+            return String.format("ServiceReference, {proxy=%s, impl=%s}", proxy, impl);
         }
     }
     
@@ -149,10 +144,8 @@ public class ServiceStarter {
         }
 
         public String toString() {
-            StringBuilder builder = new StringBuilder();
-            builder.append(this.getClass()).append(":[descriptor=").append(descriptor).append(", ");
-            builder.append("result=").append(result).append(", exception=").append(exception).append("]");
-            return builder.toString();
+            return String.format("%s:[descriptor=%s, result=%s, exception=%s]",
+                    this.getClass().getName(), descriptor, result, exception);
         }
     }
 
@@ -183,14 +176,10 @@ public class ServiceStarter {
                                             final Configuration config,
                                             final LoginContext loginContext) throws Exception {
         loginContext.login();
-        Result[] results = null;
+        Result[] results;
         try {
             results = Subject.doAsPrivileged(loginContext.getSubject(),
-                new PrivilegedExceptionAction<Result[]>() {
-                    public Result[] run() throws Exception {
-                        return create(descs, config);
-                    }
-                },
+                                             (PrivilegedExceptionAction<Result[]>) () -> create(descs, config),
                 null);
         } catch (PrivilegedActionException pae) {
             throw pae.getException();
@@ -216,13 +205,12 @@ public class ServiceStarter {
      *         <code>descs</code>, which contains the details for each service
      *         creation attempt.
      *
-     * @throws Exception If there was a problem creating the service.
      * @see Result
      * @see ServiceDescriptor
      * @see net.jini.config.Configuration
      */
-    private static Result[] create(final ServiceDescriptor[] descs, final Configuration config) throws Exception {
-        List<Result> proxies = new ArrayList<Result>();
+    private static Result[] create(final ServiceDescriptor[] descs, final Configuration config) {
+        List<Result> proxies = new ArrayList<>();
         logger.debug("Starting {} service(s)", descs.length);
         for (ServiceDescriptor desc : descs) {
             Object result = null;
@@ -237,7 +225,7 @@ public class ServiceStarter {
                 proxies.add(new Result(desc, result, problem));
             }
         }
-        return proxies.toArray(new Result[proxies.size()]);
+        return proxies.toArray(new Result[0]);
     }
 
     /**
@@ -268,10 +256,8 @@ public class ServiceStarter {
      * each transient service started. If there are no transient services
      * started, a zero-length list is returned. A new list is allocated each
      * time.
-     *
-     * @throws Exception If there are errors starting the services
      */
-    public static List<ServiceReference> start(ServiceDescriptor... descriptors) throws Exception {
+    public static List<ServiceReference> start(ServiceDescriptor... descriptors) {
         Result[] results = create(descriptors, EmptyConfiguration.INSTANCE);
         checkResultFailures(results);
         List<ServiceReference> serviceRefs = getServiceReferences(results);
@@ -343,10 +329,11 @@ public class ServiceStarter {
         logger.debug("Obtained {} service descriptors to start", descs.length);
         LoginContext loginContext = (LoginContext)config.getEntry(COMPONENT, "loginContext", LoginContext.class, null);
         Result[] results;
-        if (loginContext != null)
+        if (loginContext != null) {
             results = createWithLogin(descs, config, loginContext);
-        else
+        } else {
             results = create(descs, config);
+        }
         return results;
     }
 
@@ -356,11 +343,12 @@ public class ServiceStarter {
     * transient services from getting garbage collected.
     */
     private static List<ServiceReference> getServiceReferences(Result[] results) {
-        List<ServiceReference> refs = new ArrayList<ServiceReference>();
-        if (results.length == 0)
+        List<ServiceReference> refs = new ArrayList<>();
+        if (results.length == 0) {
             return refs;
+        }
         for (Result result : results) {
-            Class rDescClass = result.descriptor.getClass();
+            Class<?> rDescClass = result.descriptor.getClass();
             if (result.result != null) {
                 if(NonActivatableServiceDescriptor.class.equals(rDescClass)) {
                     NonActivatableServiceDescriptor.Created created =
@@ -385,8 +373,9 @@ public class ServiceStarter {
      * collected.
      */
     private static void maintainNonActivatableReferences(Result[] results) {
-        if (results.length == 0)
+        if (results.length == 0) {
             return;
+        }
         for (Result result : results) {
             if (result != null && result.result != null &&
                 (NonActivatableServiceDescriptor.class.equals(result.descriptor.getClass()) ||
@@ -401,21 +390,26 @@ public class ServiceStarter {
      * Utility routine that prints out warning messages for each service
      * descriptor that produced an exception or that was null.
      */
-    private static boolean checkResultFailures(Result[] results) {
-        if (results.length == 0)
-            return false;
-        boolean failures = false;
+    private static void checkResultFailures(Result[] results) {
+        if (results.length == 0) {
+            return;
+        }
         for (int i = 0; i < results.length; i++) {
             if (results[i].exception != null) {
-                failures = true;
                 logger.warn("service.creation.unknown", results[i].exception);
                 logger.warn("service.creation.unknown.detail {} {}", i, results[i].descriptor);
             } else if (results[i].descriptor == null) {
-                failures = true;
                 logger.warn("service.creation.null {}", i);
             }
         }
-        return failures;
+    }
+
+    @Override
+    protected void finalize() throws Throwable {
+        for (Object ref : transientServiceRefs) {
+            logger.debug("Could shutdown " + ref.getClass().getName());
+        }
+        super.finalize();
     }
 
     /**
@@ -440,7 +434,6 @@ public class ServiceStarter {
      * @see net.jini.config.ConfigurationProvider
      */
     public static void main(String[] args) {
-        LogManagementHelper.setup();
         logger.debug("Entering {}", ServiceStarter.class.getName());
         ensureSecurityManager();
         try {

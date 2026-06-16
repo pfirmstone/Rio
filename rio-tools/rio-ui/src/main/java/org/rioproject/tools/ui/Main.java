@@ -43,7 +43,6 @@ import org.rioproject.deploy.DeployAdmin;
 import org.rioproject.deploy.ServiceBeanInstance;
 import org.rioproject.entry.OperationalStringEntry;
 import org.rioproject.event.RemoteServiceEventListener;
-import org.rioproject.eventcollector.api.EventCollector;
 import org.rioproject.impl.client.JiniClient;
 import org.rioproject.impl.client.ServiceDiscoveryAdapter;
 import org.rioproject.impl.discovery.RecordingDiscoveryListener;
@@ -53,9 +52,9 @@ import org.rioproject.impl.util.ThrowableUtil;
 import org.rioproject.monitor.ProvisionMonitor;
 import org.rioproject.monitor.ProvisionMonitorEvent;
 import org.rioproject.opstring.*;
+import org.rioproject.security.SecureEnv;
 import org.rioproject.system.ComputeResourceAdmin;
 import org.rioproject.system.ComputeResourceUtilization;
-import org.rioproject.tools.ui.browser.Browser;
 import org.rioproject.tools.ui.cybernodeutilization.CybernodeUtilizationPanel;
 import org.rioproject.tools.ui.discovery.GroupSelector;
 import org.rioproject.tools.ui.multicast.MulticastMonitor;
@@ -134,10 +133,10 @@ public class Main extends JFrame {
         progressPanel = new ProgressPanel(config);
         glassPaneComponent = new GlassPaneContainer(progressPanel);
         String lastArtifactName = startupProps.getProperty(Constants.LAST_ARTIFACT);
-        if(lastArtifactName!=null)
+        if (lastArtifactName!=null)
             lastArtifact = lastArtifactName;
         String lastDirName = startupProps.getProperty(Constants.LAST_DIRECTORY);
-        if(lastDirName!=null)
+        if (lastDirName!=null)
             lastDir = new File(lastDirName);
 
         ServiceAdminManager.getInstance().setAdminFrameProperties(startupProps);
@@ -152,7 +151,7 @@ public class Main extends JFrame {
 
         try {
             String title = (String)config.getEntry(Constants.COMPONENT, "title", String.class, null);
-            if(title!=null)
+            if (title!=null)
                 setTitle(title);
         } catch (ConfigurationException e) {
             e.printStackTrace();
@@ -176,9 +175,9 @@ public class Main extends JFrame {
 
         try {
             String bannerIcon = (String)config.getEntry(Constants.COMPONENT, "bannerIcon", String.class, null);
-            if(bannerIcon!=null) {
+            if (bannerIcon!=null) {
                 ImageIcon icon = Util.getImageIcon(bannerIcon);
-                if(icon!=null) {
+                if (icon!=null) {
                     setIconImage(icon.getImage());
                     startupProps.setProperty("bannerIcon", bannerIcon);
                 }
@@ -233,7 +232,7 @@ public class Main extends JFrame {
     }
 
     GraphView getGraphView() {
-        if(monitorTabs.getTabCount()>0)
+        if (monitorTabs.getTabCount()>0)
             return ((ProvisionMonitorPanel) monitorTabs.getSelectedComponent()).getGraphView();
         return null;
     }
@@ -263,93 +262,51 @@ public class Main extends JFrame {
         JMenuBar menuBar = new JMenuBar();
         menuBar.setLayout(new BoxLayout(menuBar, BoxLayout.X_AXIS));
         JMenu fileMenu = null;
-        if(!MacUIHelper.isMacOS()) {
+        if (!MacUIHelper.isMacOS()) {
             fileMenu = new JMenu("File");
             JMenuItem preferencesMenuItem = fileMenu.add(new JMenuItem("Preferences"));
-            preferencesMenuItem.addActionListener(new ActionListener() {
-                public void actionPerformed(ActionEvent e) {
-                    PreferencesDialog prefs = new PreferencesDialog(frame, getGraphView(), cup);
-                    prefs.setVisible(true);
-                }
+            preferencesMenuItem.addActionListener(e -> {
+                PreferencesDialog prefs = new PreferencesDialog(frame, getGraphView(), cup);
+                prefs.setVisible(true);
             });
             JMenuItem exitMenuItem = fileMenu.add(new JMenuItem("Exit"));
-            exitMenuItem.addActionListener(new ActionListener() {
-                public void actionPerformed(ActionEvent e) {
-                    terminateAndClose();
-                }
-            });
+            exitMenuItem.addActionListener(e -> terminateAndClose());
         }
         JMenu discoMenu = new JMenu("Discovery");
         JMenuItem groupSelector = discoMenu.add(new JMenuItem("Group Selector"));
-        groupSelector.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent ae) {
-                JDialog dialog = GroupSelector.getDialog(frame, sdm.getDiscoveryManager(), recordingListener);
-                dialog.setVisible(true);
-            }
+        groupSelector.addActionListener(ae -> {
+            JDialog dialog = GroupSelector.getDialog(frame, sdm.getDiscoveryManager(), recordingListener);
+            dialog.setVisible(true);
         });
         JMenuItem addLocator = discoMenu.add(new JMenuItem("Add Locator..."));
-        addLocator.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent ae) {
-                addLocator();
-            }
-        });
+        addLocator.addActionListener(ae -> addLocator());
         JMenuItem remLocator = discoMenu.add(new JMenuItem("Remove Locator..."));
-        remLocator.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent e) {
-                removeLocator();
-            }
-        });
+        remLocator.addActionListener(e -> removeLocator());
         discoMenu.addSeparator();
         //String[] gps = jiniClient.getRegistrarGroups();
         JMenuItem addGroup = discoMenu.add(new JMenuItem("Add Group..."));
-        //if (gps == null)
+        //if (gps  ==  null)
         //    addGroup.setEnabled(false);
-        addGroup.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent ae) {
-                addGroup();
-            }
-        });
+        addGroup.addActionListener(ae -> addGroup());
         JMenuItem remGroup = discoMenu.add(new JMenuItem("Remove Group..."));
-        //if (gps == null)
+        //if (gps  ==  null)
         //    remGroup.setEnabled(false);
-        remGroup.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent e) {
-                removeGroup();
-            }
-        });
+        remGroup.addActionListener(e -> removeGroup());
 
         JMenu toolsMenu = new JMenu("Tools");
         JMenuItem multiCastMonitor = toolsMenu.add(new JMenuItem("Multicast Monitor..."));
-        multiCastMonitor.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent ae) {
-                JDialog dialog = MulticastMonitor.getDialog(frame);
-                dialog.setVisible(true);
-            }
-        });
-        JMenuItem browserMenu = toolsMenu.add(new JMenuItem("Service Browser..."));
-        final JFrame parent = this;
-        browserMenu.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent ae) {
-                try {
-                    Browser browser = new Browser(config, parent);
-                    browser.setVisible(true);
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            }
+        multiCastMonitor.addActionListener(ae -> {
+            JDialog dialog = MulticastMonitor.getDialog(frame);
+            dialog.setVisible(true);
         });
 
         JMenu helpMenu = null;
-        if(!MacUIHelper.isMacOS()) {
+        if (!MacUIHelper.isMacOS()) {
             helpMenu = new JMenu("Help");
             helpMenu.setMnemonic('H');
             JMenuItem about = helpMenu.add(new JMenuItem("About..."));
             about.setMnemonic('A');
-            about.addActionListener(new ActionListener() {
-                public void actionPerformed(ActionEvent e) {
-                    new RioAboutBox(frame);
-                }
-            });
+            about.addActionListener(e -> new RioAboutBox(frame));
         } /*else {
 			MacUIHelper.setUIHandler(this, getGraphView(), cup);
 		}*/
@@ -373,19 +330,19 @@ public class Main extends JFrame {
         String input = JOptionPane.showInputDialog("Enter a Locator to Discover host[:port]");
         if (input != null) {
             portIndex = input.indexOf(":");
-            if (portIndex == -1)
+            if (portIndex  ==  -1)
                 port = 4160;
-            if (input.startsWith("http://") || input.startsWith("jini://")) {
+            if (input.startsWith("http://") || input.startsWith("https://") || input.startsWith("jini://")) {
                 String s = input.substring(0, 5);
                 JOptionPane.showMessageDialog(this,
-                                              "Remove the ["+s+ "] " +
+                                              "Remove the [" + s + "] " +
                                               "and resubmit",
                                               "Locator Format Error",
                                               JOptionPane.ERROR_MESSAGE);
                 return;
             }
             try {
-                String host = (portIndex == -1 ? input : input.substring(0, portIndex));
+                String host = (portIndex  ==  -1 ? input : input.substring(0, portIndex));
                 if (portIndex != -1) {
                     boolean portError = false;
                     String errorReason = null;
@@ -426,7 +383,7 @@ public class Main extends JFrame {
      */
     public void removeLocator() {
         LookupLocator[] locators = jiniClient.getLocators();
-        if (locators == null || locators.length == 0) {
+        if (locators  ==  null || locators.length  ==  0) {
             JOptionPane.showMessageDialog(this,
                                           "There are no locators to remove",
                                           "Zero Locator Error",
@@ -441,7 +398,7 @@ public class Main extends JFrame {
                                                         null,
                                                         locators,
                                                         locators[0]);
-        if (selected == null)
+        if (selected  ==  null)
             return;
         jiniClient.removeLocators(new LookupLocator[]{selected});
     }
@@ -478,7 +435,7 @@ public class Main extends JFrame {
      */
     public void removeGroup() {
         String[] groups = jiniClient.getRegistrarGroups();
-        if (groups == null || groups.length == 0) {
+        if (groups  ==  null || groups.length  ==  0) {
             JOptionPane.showMessageDialog(this,
                                           "There are no groups to remove",
                                           "Zero Group Error",
@@ -493,7 +450,7 @@ public class Main extends JFrame {
                                                 null,
                                                 groups,
                                                 groups[0]);
-        if (selected == null)
+        if (selected  ==  null)
             return;
         jiniClient.removeRegistrarGroups(new String[]{selected});
     }
@@ -502,15 +459,15 @@ public class Main extends JFrame {
      * Terminate the utility
      */
     public void terminate() {
-        if(lookupDiscovery!=null)
+        if (lookupDiscovery!=null)
             lookupDiscovery.terminate();
-        if(sdm != null)
+        if (sdm != null)
             sdm.terminate();
-        if(jiniClient != null)
+        if (jiniClient != null)
             jiniClient.terminate();
-        if(scheduler!=null)
+        if (scheduler!=null)
             scheduler.shutdownNow();
-        if(service!=null)
+        if (service!=null)
             service.shutdownNow();
 
         remoteEventTable.terminate();
@@ -519,7 +476,6 @@ public class Main extends JFrame {
         Point point = getLocation();
         Properties props = new Properties();
 
-        props.put(Constants.USE_EVENT_COLLECTOR, Boolean.toString(remoteEventTable.getUseEventCollector()));
         props.put(Constants.EVENTS_DIVIDER, Integer.toString(remoteEventTable.getDividerLocation()));
 
         props.put(Constants.FRAME_HEIGHT, Integer.toString(dim.height));
@@ -529,7 +485,7 @@ public class Main extends JFrame {
 
         props.put(Constants.TREE_TABLE_AUTO_EXPAND, Boolean.toString(cup.getExpandAll()));
 
-        if(lastArtifact!=null)
+        if (lastArtifact!=null)
             props.put(Constants.LAST_ARTIFACT, lastArtifact);
         props.put(Constants.LAST_DIRECTORY, lastDir.getAbsolutePath());
 
@@ -539,12 +495,12 @@ public class Main extends JFrame {
         props.put(Constants.UNMANAGED_COLOR, Integer.toString(colorManager.getUnManagedColor().getRGB()));
 
         dim = ServiceAdminManager.getInstance().getLastAdminFrameSize();
-        if(dim!=null) {
+        if (dim!=null) {
             props.put(Constants.ADMIN_FRAME_HEIGHT, Integer.toString(dim.height));
             props.put(Constants.ADMIN_FRAME_WIDTH, Integer.toString(dim.width));
         }
         point = ServiceAdminManager.getInstance().getLastAdminFrameLocation();
-        if(point!=null) {
+        if (point!=null) {
             props.put(Constants.ADMIN_FRAME_X_POS, Double.toString(point.getX()));
             props.put(Constants.ADMIN_FRAME_Y_POS, Double.toString(point.getY()));
         }
@@ -553,7 +509,7 @@ public class Main extends JFrame {
             ServiceAdminManager.getInstance().getLastAdminWindowLayout();
         props.put(Constants.ADMIN_FRAME_WINDOW_LAYOUT, lastAdminWindowLayout);
 
-        if(getGraphView()!=null)
+        if (getGraphView()!=null)
             props.put(Constants.GRAPH_ORIENTATION, Integer.toString(getGraphView().getOrientation()));
 
         props.put(Constants.CYBERNODE_REFRESH_RATE, Integer.toString(getCybernodeRefreshRate()));
@@ -597,13 +553,13 @@ public class Main extends JFrame {
      * @throws IOException If there are exceptions accessing the file system
      */
     private void saveProperties(final Properties props, final String filename) throws IOException {
-        if (props == null)
+        if (props  ==  null)
             throw new IllegalArgumentException("props is null");
 
 
         File userRioDir = new File(System.getProperty("user.home"), ".rio");
         if (!userRioDir.exists()) {
-            if(userRioDir.mkdir()) {
+            if (userRioDir.mkdir()) {
                 System.err.println("Created: "+userRioDir.getPath());
             }
         }
@@ -616,7 +572,7 @@ public class Main extends JFrame {
      */
     public void terminateAndClose() {
         terminate();
-        if(System.getProperty(AS_SERVICE_UI)==null)
+        if (System.getProperty(AS_SERVICE_UI) == null)
             System.exit(0);
     }
 
@@ -625,15 +581,15 @@ public class Main extends JFrame {
     }
 
     public void setCybernodeRefreshRate(int rate) {
-        if(rate!=cybernodeRefreshRate) {
+        if (rate!=cybernodeRefreshRate) {
             cybernodeRefreshRate = rate;
             scheduleComputeResourceUtilizationTask();
         }
     }
 
     void scheduleComputeResourceUtilizationTask() {
-        if(scheduler!=null) {
-            if(cruTask!=null)
+        if (scheduler!=null) {
+            if (cruTask!=null)
                 cruTask.cancel();
             cruTask = new ComputeResourceUtilizationTask();
             scheduler.scheduleAtFixedRate(cruTask,
@@ -653,8 +609,8 @@ public class Main extends JFrame {
     }
 
     void refreshCybernodeTable() {
-        if(cruTask!=null) {
-            if(cup.getCount()>0) {
+        if (cruTask!=null) {
+            if (cup.getCount()>0) {
                 try {
                     setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
                     cruTask.run();
@@ -715,9 +671,6 @@ public class Main extends JFrame {
         jiniClient = new JiniClient(new LookupDiscoveryManager(groups, locators, null, config));
         ServiceTemplate monitors = new ServiceTemplate(null, new Class[]{ProvisionMonitor.class}, null);
         ServiceTemplate cybernodes = new ServiceTemplate(null, new Class[]{Cybernode.class}, null);
-        ServiceTemplate eventCollectors = new ServiceTemplate(null,
-                                                              new Class[]{EventCollector.class},
-                                                              new Entry[]{new OperationalStringEntry(org.rioproject.config.Constants.CORE_OPSTRING)});
         ServiceTemplate all = new ServiceTemplate(null, null, null);
 
         sdm = new ServiceDiscoveryManager(jiniClient.getDiscoveryManager(), new LeaseRenewalManager(), config);
@@ -728,7 +681,6 @@ public class Main extends JFrame {
 
         monitorCache = sdm.createLookupCache(monitors, null, watcher);
         sdm.createLookupCache(cybernodes, null, watcher);
-        sdm.createLookupCache(eventCollectors, null, watcher);
 
         clientEventConsumer = new BasicEventConsumer(ProvisionMonitorEvent.getEventDescriptor(),
                                                      provisionClientEventConsumer,
@@ -759,12 +711,12 @@ public class Main extends JFrame {
         //failureEventConsumer.register(item);
         DeployAdmin da = (DeployAdmin)monitor.getAdmin();
         OperationalStringManager[] opStringMgrs = da.getOperationalStringManagers();
-        if (opStringMgrs == null || opStringMgrs.length == 0) {
+        if (opStringMgrs  ==  null || opStringMgrs.length  ==  0) {
             return;
         }
         for (OperationalStringManager opStringMgr : opStringMgrs) {
             OperationalString ops = opStringMgr.getOperationalString();
-            if(getGraphView().getOpStringNode(ops.getName())!=null)
+            if (getGraphView().getOpStringNode(ops.getName())!=null)
                 return;
             getGraphView().addOpString(ops);
             ServiceElement[] elems = ops.getServices();
@@ -772,7 +724,7 @@ public class Main extends JFrame {
                 ServiceBeanInstance[] instances = opStringMgr.getServiceBeanInstances(elem);
                 for(ServiceBeanInstance instance : instances) {
                     GraphNode node = getGraphView().serviceUp(elem, instance);
-                    if(node!=null)
+                    if (node!=null)
                         RequestQueues.write(node, pmp.getGraphView());
                     else {
                         System.err.println("### Cant get GraphNode for ["+elem.getName()+"], " +
@@ -787,7 +739,7 @@ public class Main extends JFrame {
     private ProvisionMonitorPanel addProvisionMonitorPanel(ServiceItem item) {
         ProvisionMonitor monitor = (ProvisionMonitor) item.service;
         ProvisionMonitorPanel pmp = null;
-        if(monitorPanelMap.get(monitor)==null) {
+        if (monitorPanelMap.get(monitor) == null) {
             pmp = new ProvisionMonitorPanel(monitor,
                                             frame,
                                             colorManager,
@@ -797,7 +749,7 @@ public class Main extends JFrame {
 
             String host = "<unknown>";
             for(Entry entry : item.attributeSets) {
-                if(entry instanceof Host) {
+                if (entry instanceof Host) {
                     host = ((Host)entry).hostName;
                     break;
                 }
@@ -849,15 +801,15 @@ public class Main extends JFrame {
                                                                            null,
                                                                            null,
                                                                            null);
-                    if(getGraphViews().isEmpty()) {
+                    if (getGraphViews().isEmpty()) {
                         Thread.sleep(100);
                     }
 
                     GraphNode opStringNode = getExternal();
                     OpString opString = (OpString) opStringNode.getOpString();
-                    if(!request.removed) {
+                    if (!request.removed) {
                         GraphNode elementNode = getGraphView().getServiceElementNode(service);
-                        if (elementNode == null) {
+                        if (elementNode  ==  null) {
                             opStringNode.getOpString().addService(service);
                             for(GraphView graphView : getGraphViews())
                                 graphView.addServiceElement(service);
@@ -877,20 +829,20 @@ public class Main extends JFrame {
                     } else {
                         boolean remove = false;
                         for(ServiceElement s : opStringNode.getOpString().getServices()) {
-                            if(s.getName().equals(service.getName())) {
-                                System.err.println("===> "+s.getName()+" service count: "+s.getActual());
-                                if(s.getActual()==1) {
+                            if (s.getName().equals(service.getName())) {
+                                System.err.println(" == => "+s.getName()+" service count: "+s.getActual());
+                                if (s.getActual() == 1) {
                                     remove = true;
                                     break;
                                 }
                             }
                         }
-                        if(remove) {
+                        if (remove) {
                             int beforeCount = opString.getServices().length;
                             opString.removeService(service);
                             opStringNode.setOpString(opString);
-                            System.err.println("===> "+opString.getName()+" service count before: "+beforeCount+", after: "+opString.getServices().length);
-                            if(opString.getServices().length==0) {
+                            System.err.println(" == => "+opString.getName()+" service count before: "+beforeCount+", after: "+opString.getServices().length);
+                            if (opString.getServices().length == 0) {
                                 for(GraphView graphView : getGraphViews())
                                     graphView.removeOpString(opString.getName());
                             } else {
@@ -925,7 +877,7 @@ public class Main extends JFrame {
         }
 
         Collection<GraphView> getGraphViews() {
-            while(getGraphView()==null) {
+            while(getGraphView() == null) {
                 try {
                     Thread.sleep(100);
                 } catch (InterruptedException e) {
@@ -937,7 +889,7 @@ public class Main extends JFrame {
             for(int i=0; i<monitorTabs.getTabCount(); i++) {
                 ProvisionMonitorPanel provisionMonitorPanel =
                     (ProvisionMonitorPanel) monitorTabs.getTabComponentAt(i);
-                if(provisionMonitorPanel!=null)
+                if (provisionMonitorPanel!=null)
                     graphViews.add(provisionMonitorPanel.getGraphView());
             }
             return graphViews;
@@ -984,17 +936,10 @@ public class Main extends JFrame {
         public void serviceAdded(ServiceDiscoveryEvent sdEvent) {
             try {
                 ServiceItem item = sdEvent.getPostEventServiceItem();
-                if(item.service instanceof EventCollector) {
-                    try {
-                        remoteEventTable.addEventCollector((EventCollector) item.service);
-                    } catch(Exception e) {
-                        Util.showError(e, frame, "Cannot add Event Collector");
-                    }
-                }
-                if(item.service instanceof ProvisionMonitor) {
+                if (item.service instanceof ProvisionMonitor) {
                     ProvisionMonitor monitor = (ProvisionMonitor) item.service;
                     ProvisionMonitorPanel pmp = addProvisionMonitorPanel(item);
-                    if(pmp==null)
+                    if (pmp == null)
                         return;
 
                     clientEventConsumer.register(item);
@@ -1002,12 +947,12 @@ public class Main extends JFrame {
                     //failureEventConsumer.register(item);
                     DeployAdmin da = (DeployAdmin)monitor.getAdmin();
                     OperationalStringManager[] opStringMgrs = da.getOperationalStringManagers();
-                    if (opStringMgrs.length == 0) {
+                    if (opStringMgrs.length  ==  0) {
                         return;
                     }
                     for (OperationalStringManager opStringMgr : opStringMgrs) {
                         OperationalString ops = opStringMgr.getOperationalString();
-                        if(pmp.getGraphView().getOpStringNode(ops.getName())!=null)
+                        if (pmp.getGraphView().getOpStringNode(ops.getName())!=null)
                            return;
                         pmp.getGraphView().addOpString(ops);
                         ServiceElement[] elems = ops.getServices();
@@ -1015,7 +960,7 @@ public class Main extends JFrame {
                             ServiceBeanInstance[] instances = opStringMgr.getServiceBeanInstances(elem);
                             for(ServiceBeanInstance instance : instances) {
                                 GraphNode node = pmp.getGraphView().serviceUp(elem, instance);
-                                if(node!=null)
+                                if (node!=null)
                                     RequestQueues.write(node, pmp.getGraphView());
                                 else {
                                     System.err.println("### Cant get GraphNode " +
@@ -1026,7 +971,7 @@ public class Main extends JFrame {
                         }
                         pmp.getGraphView().setOpStringState(ops.getName());
                     }
-                } else if(item.service instanceof Cybernode) {
+                } else if (item.service instanceof Cybernode) {
                     Cybernode c = (Cybernode)item.service;
                     CybernodeAdmin cAdmin;
                     try {
@@ -1047,25 +992,22 @@ public class Main extends JFrame {
 
         public void serviceRemoved(ServiceDiscoveryEvent sdEvent) {
             ServiceItem item = sdEvent.getPreEventServiceItem();
-            if(item.service instanceof ProvisionMonitor) {
+            if (item.service instanceof ProvisionMonitor) {
                 monitorCache.discard(item.service);
                 ProvisionMonitorPanel pmp = monitorPanelMap.get(item.service);
                 int ndx = monitorTabs.indexOfComponent(pmp);
-                if(ndx<0)
+                if (ndx<0)
                     return;
                 monitorTabs.removeTabAt(ndx);
-                if(monitorCache.lookup(null, Integer.MAX_VALUE).length==0) {
+                if (monitorCache.lookup(null, Integer.MAX_VALUE).length == 0) {
                     progressPanel.systemDown();
                     mainTabs.setComponentAt(0, glassPaneComponent);
                     mainTabs.repaint();
                 }
             }
 
-            if(item.service instanceof Cybernode) {
+            if (item.service instanceof Cybernode) {
                 cup.removeCybernode((Cybernode)item.service);
-            }
-            if(item.service instanceof EventCollector) {
-                remoteEventTable.removeEventCollector((EventCollector)item.service);
             }
         }
     }
@@ -1073,7 +1015,7 @@ public class Main extends JFrame {
     Name getName(Entry[] entries) {
         Name name = null;
         for(Entry e : entries) {
-            if(e instanceof Name) {
+            if (e instanceof Name) {
                 name = (Name)e;
                 break;
             }
@@ -1087,10 +1029,10 @@ public class Main extends JFrame {
         try {
             cru = crAdmin.getComputeResourceUtilization();
         } catch(Exception e) {
-            if(ThrowableUtil.isRetryable(e)) {
+            if (ThrowableUtil.isRetryable(e)) {
                 /* Rio 3.2 does not have the getComputeResourceUtilization method */
                 for(Entry entry : item.attributeSets) {
-                    if(entry instanceof ComputeResourceUtilization) {
+                    if (entry instanceof ComputeResourceUtilization) {
                         cru = (ComputeResourceUtilization)entry;
                         break;
                     }
@@ -1106,7 +1048,7 @@ public class Main extends JFrame {
      * Handler for ProvisionMonitorEvent utilities
      */
     class ProvisionClientEventConsumer implements RemoteServiceEventListener<ProvisionMonitorEvent> {
-        final List<ProvisionMonitorEvent> eventQ = new LinkedList<ProvisionMonitorEvent>();
+        final List<ProvisionMonitorEvent> eventQ = new LinkedList<>();
 
         public void notify(ProvisionMonitorEvent pme) {
             ProvisionMonitorEvent.Action action = pme.getAction();
@@ -1123,7 +1065,7 @@ public class Main extends JFrame {
                     refreshCybernodes(pme);
                     break;
                 case SERVICE_ELEMENT_ADDED:
-                    if(pme.getServiceElement()==null) {
+                    if (pme.getServiceElement() == null) {
                         System.err.println("Unable to add ServiceElement, " +
                                            "ServiceElement property in ProvisionMonitorEvent is null");
                         break;
@@ -1132,7 +1074,7 @@ public class Main extends JFrame {
                     processQueued(pme.getOperationalStringName(), graphView);
                     break;
                 case SERVICE_ELEMENT_REMOVED:
-                    if(pme.getServiceElement()==null) {
+                    if (pme.getServiceElement() == null) {
                         System.err.println("Unable to remove ServiceElement, " +
                                            "ServiceElement property in ProvisionMonitorEvent is null");
                         break;
@@ -1167,13 +1109,13 @@ public class Main extends JFrame {
         }
 
         void handleServiceProvisioned(ProvisionMonitorEvent pme, GraphView graphView) {
-            if(graphView.getOpStringNode(pme.getOperationalStringName())==null) {
+            if (graphView.getOpStringNode(pme.getOperationalStringName()) == null) {
                 eventQ.add(pme);
             } else {
                 GraphNode node = null;
                 try {
                     node = graphView.serviceUp(pme.getServiceElement(), pme.getServiceBeanInstance());
-                    if(node==null)
+                    if (node == null)
                         eventQ.add(pme);
                 } finally {
                     RequestQueues.write(node, graphView);
@@ -1190,12 +1132,12 @@ public class Main extends JFrame {
 
         ProvisionMonitorEvent[] getEvents(String opStringName) {
             ProvisionMonitorEvent[] events;
-            List<ProvisionMonitorEvent> list = new LinkedList<ProvisionMonitorEvent>();
+            List<ProvisionMonitorEvent> list = new LinkedList<>();
             synchronized(eventQ) {
                 events = eventQ.toArray(new ProvisionMonitorEvent[eventQ.size()]);
             }
             for(ProvisionMonitorEvent event : events) {
-                if(event.getOperationalStringName().equals(opStringName)) {
+                if (event.getOperationalStringName().equals(opStringName)) {
                     synchronized(eventQ) {
                         eventQ.remove(event);
                     }
@@ -1206,9 +1148,9 @@ public class Main extends JFrame {
         }
 
         void refreshCybernodes(ProvisionMonitorEvent pme) {
-			if (pme == null) {
+			if (pme  ==  null) {
 				System.err.println("refreshCybernodes(): Null ProvisionMonitorEvent!!");
-            } else if (pme.getServiceBeanInstance() == null) {
+            } else if (pme.getServiceBeanInstance()  ==  null) {
                 System.err.println("refreshCybernodes(): Can't fetch ServiceBeanInstance from ProvisionMonitorEvent");
 
             } else {
@@ -1221,8 +1163,8 @@ public class Main extends JFrame {
      * Update the compute resource utilization with a scheduled task
      */
     class ComputeResourceUtilizationTask implements Runnable {
-        final Map<ServiceItem, CybernodeAdmin> adminTable = new HashMap<ServiceItem, CybernodeAdmin>();
-        final List<ServiceItem> removals = new ArrayList<ServiceItem>();
+        final Map<ServiceItem, CybernodeAdmin> adminTable = new HashMap<>();
+        final List<ServiceItem> removals = new ArrayList<>();
         private boolean cancelled = false;
 
         void addCybernode(ServiceItem item) {
@@ -1243,7 +1185,7 @@ public class Main extends JFrame {
         }
 
         public void run() {
-            if(cancelled)
+            if (cancelled)
                 return;
             Set<Map.Entry<ServiceItem,CybernodeAdmin>> tableSet;
             synchronized(adminTable) {
@@ -1257,7 +1199,7 @@ public class Main extends JFrame {
                     ComputeResourceUtilization cru = getComputeResourceUtilization(cAdmin, item);
                     cup.update(item, cAdmin, cru, utilizationColumnManager);
                 } catch (Throwable e) {
-                    if(!ThrowableUtil.isRetryable(e) &&
+                    if (!ThrowableUtil.isRetryable(e) &&
                        !(e instanceof NullPointerException)) {
                         removals.add(item);
                         cup.removeCybernode(cybernode);
@@ -1283,13 +1225,13 @@ public class Main extends JFrame {
                 try {
                     request = RequestQueues.take();
                     GraphNode node = request.node;
-                    if(node.getInstance()!=null) {
+                    if (node.getInstance()!=null) {
                         Uuid uuid = node.getInstance().getServiceBeanID();
                         ServiceID serviceID = new ServiceID(uuid.getMostSignificantBits(),
                                                             uuid.getLeastSignificantBits());
                         ServiceTemplate template = new ServiceTemplate(serviceID, null, null);
                         ServiceItem item = sdm.lookup(template, null, 1000);
-                        if(item!=null) {
+                        if (item!=null) {
                             request.graphView.setGraphNodeServiceItem(node, item);
                         } else {
                             RequestQueues.write(request);
@@ -1309,16 +1251,16 @@ public class Main extends JFrame {
 
     public static void redirect() {
         String rioHome = System.getProperty("rio.home");
-        if(rioHome == null) {
+        if (rioHome  ==  null) {
             rioHome = RioHome.get();
         }
 
         String logDirPath = System.getProperty(Constants.COMPONENT+".logDir", rioHome+File.separator+"logs");
         File logDir = new File(logDirPath);
-        if(!logDir.exists())
+        if (!logDir.exists())
             logDir.mkdirs();
         File rioUILog = new File(logDir, "rio-ui.log");
-        if(rioUILog.exists()) {
+        if (rioUILog.exists()) {
             rioUILog.delete();
         }  
         System.out.println("Creating log file in "+rioUILog.getAbsolutePath());
@@ -1327,14 +1269,14 @@ public class Main extends JFrame {
         } catch(FileNotFoundException e) {
             e.printStackTrace();
         }
-        System.err.println("===============================================");
+        System.err.println(" ==  ==  ==  ==  ==  ==  ==  ==  ==  ==  ==  ==  ==  ==  ==  ==  ==  ==  ==  ==  ==  ==  == =");
         System.err.println("Rio Monitor UI\n"+
                            "Log creation : "+new Date(startTime).toString()+"\n"+
                            "Operator : "+System.getProperty("user.name"));
-        System.err.println("===============================================");
+        System.err.println(" ==  ==  ==  ==  ==  ==  ==  ==  ==  ==  ==  ==  ==  ==  ==  ==  ==  ==  ==  ==  ==  ==  == =");
     }
 
-    private static String generateGroovyOverride(long multicastAnnouncementInterval) throws IOException {
+    /*private static String generateGroovyOverride(long multicastAnnouncementInterval) throws IOException {
         String[] lines = new String[] {
             "import org.rioproject.config.Component\n",
             "@Component('net.jini.discovery.LookupDiscovery')\n",
@@ -1343,19 +1285,14 @@ public class Main extends JFrame {
             "}"
         };
         File tmp = File.createTempFile("tmp", ".groovy");
-        tmp.deleteOnExit();
-        BufferedWriter out = null;
-        try {
-            out = new BufferedWriter(new FileWriter(tmp));
+        //tmp.deleteOnExit();
+        try (BufferedWriter out = new BufferedWriter(new FileWriter(tmp))) {
             for (String line : lines) {
                 out.write(line);
             }
-        } finally {
-            if (out != null)
-                out.close();
         }
         return tmp.getCanonicalPath();
-    }
+    }*/
 
     private static String generateJiniOverride(long multicastAnnouncementInterval) {
         String lookupComponent = "net.jini.discovery.LookupDiscovery";
@@ -1365,9 +1302,9 @@ public class Main extends JFrame {
     @SuppressWarnings("unchecked")
     public static void main(final String[] args) {
         try {
+            SecureEnv.setup();
             Main frame;
-            final LinkedList<String> commandArgs = new LinkedList<String>();
-            commandArgs.addAll(Arrays.asList(args));
+            final LinkedList<String> commandArgs = new LinkedList<>(Arrays.asList(args));
             for(String arg : args) {
                 if (arg.startsWith("groups")) {
                     String[] values = arg.split("=");
@@ -1383,9 +1320,9 @@ public class Main extends JFrame {
                     StringBuilder sb = new StringBuilder();
                     int i=0;
                     for(String locator : locators) {
-                        if(!locator.startsWith("jini://"))
+                        if (!locator.startsWith("jini://"))
                             locator = "jini://"+locator;
-                        if(i>0)
+                        if (i>0)
                             sb.append(",");
                         sb.append(locator);
                         i++;
@@ -1401,21 +1338,14 @@ public class Main extends JFrame {
             /* Set the interval to wait for multicast announcements to
                5 seconds */
             long multicastAnnouncementInterval = 5000;
-            String override;
-
             /* Add the interval to wait for multicast announcements as
                an override */
-            if(commandArgs.isEmpty()) {
-                override = generateGroovyOverride(multicastAnnouncementInterval);
-            } else {
-                if(commandArgs.get(0).endsWith(".groovy")) {
-                    override = generateGroovyOverride(multicastAnnouncementInterval);
-                } else {
-                    override = generateJiniOverride(multicastAnnouncementInterval);
-                }
+            if (commandArgs.isEmpty()) {
+                String override = generateJiniOverride(multicastAnnouncementInterval);
+                //commandArgs.add(override);
             }
-            commandArgs.add(override);
-            String[] newArgs = commandArgs.toArray(new String[commandArgs.size()]);
+
+            String[] newArgs = commandArgs.toArray(new String[0]);
                         
             final Configuration config = ConfigurationProvider.getInstance(newArgs);
             final Properties props  = new Properties();
@@ -1424,27 +1354,24 @@ public class Main extends JFrame {
             } catch(IOException e) {
                 //
             }
-            PrivilegedExceptionAction<Main> createViewer =
-                new PrivilegedExceptionAction<Main>() {
-                public Main run() throws Exception {
-                    System.setSecurityManager(new SecurityManager());
-                    /* Set properties for execution on a Mac client */
-                    if(MacUIHelper.isMacOS()) {
-                        MacUIHelper.setSystemProperties();                        
-                    }
+            PrivilegedExceptionAction<Main> createViewer = () -> {
+                        System.setSecurityManager(new SecurityManager());
+                        /* Set properties for execution on a Mac client */
+                        if (MacUIHelper.isMacOS()) {
+                            MacUIHelper.setSystemProperties();
+                        }
 
-                    /* If the artifact URL has not been configured, set it up */
-                    try {
-                        new URL("artifact:foo");
-                    } catch (MalformedURLException e) {
-                        URL.setURLStreamHandlerFactory(new ArtifactURLStreamHandlerFactory());
-                    }
+                        /* If the artifact URL has not been configured, set it up */
+                        try {
+                            new URL("artifact:foo");
+                        } catch (MalformedURLException e) {
+                            URL.setURLStreamHandlerFactory(new ArtifactURLStreamHandlerFactory());
+                        }
 
-                    Main.redirect();
-                    //Installer.install();
-                    return new Main(config, true, props);
-                }
-            };
+                        Main.redirect();
+                        //Installer.install();
+                        return new Main(config, true, props);
+                    };
 
             try {
                 LoginContext loginContext = (LoginContext) Config.getNonNullEntry(config,
@@ -1458,32 +1385,30 @@ public class Main extends JFrame {
             }
 
             final Main mainUI = frame;
-            SwingUtilities.invokeLater(new Runnable() {
-                @Override
-                public void run() {
-                    mainUI.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
-                    mainUI.pack();
+            SwingUtilities.invokeLater(() -> {
+                mainUI.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
+                mainUI.pack();
 
-                    String s = props.getProperty(Constants.FRAME_WIDTH);
-                    int width = (s == null ? 700 : Integer.parseInt(s));
-                    s = props.getProperty(Constants.FRAME_HEIGHT);
-                    int height = (s == null ? 690 : Integer.parseInt(s));
-                    mainUI.setSize(new Dimension(width, height));
+                String s = props.getProperty(Constants.FRAME_WIDTH);
+                int width = (s  ==  null ? 700 : Integer.parseInt(s));
+                s = props.getProperty(Constants.FRAME_HEIGHT);
+                int height = (s  ==  null ? 690 : Integer.parseInt(s));
+                mainUI.setSize(new Dimension(width, height));
 
-                    s = props.getProperty(Constants.FRAME_X_POS);
-                    if (s != null) {
-                        double xPos = Double.parseDouble(s);
-                        double yPos = Double.parseDouble(props.getProperty(Constants.FRAME_Y_POS));
-                        mainUI.setLocation((int) xPos, (int) yPos);
-                    }
-                    mainUI.setVisible(true);
-                    mainUI.setStartupLocations(props);
-                    try {
-                        mainUI.startDiscovery();
-                    } catch(Exception e) {
-                        e.printStackTrace();
-                    }
-                }});
+                s = props.getProperty(Constants.FRAME_X_POS);
+                if (s != null) {
+                    double xPos = Double.parseDouble(s);
+                    double yPos = Double.parseDouble(props.getProperty(Constants.FRAME_Y_POS));
+                    mainUI.setLocation((int) xPos, (int) yPos);
+                }
+                mainUI.setVisible(true);
+                mainUI.setStartupLocations(props);
+                try {
+                    mainUI.startDiscovery();
+                } catch(Exception e) {
+                    e.printStackTrace();
+                }
+            });
         } catch(Exception e) {
             e.printStackTrace();
             System.exit(1);

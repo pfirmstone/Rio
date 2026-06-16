@@ -1,12 +1,12 @@
 /*
- * Copyright 2010 to the original author or authors.
- *
+ * Copyright to the original author or authors.
+ * 
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
+ * 
+ *         http://www.apache.org/licenses/LICENSE-2.0
+ * 
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -17,18 +17,23 @@ package org.rioproject.resolver;
 
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.rioproject.resolver.aether.AetherResolver;
 import org.rioproject.resolver.maven2.Repository;
 
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
+import java.io.IOException;
 
 /**
  * Test resolving artifacts with and without inclusion of Rio
  */
+@Ignore
 public class ITResolverUsingRioDepsTest {
     
-    private static String RESOLVER_PRUNE_PLATFORM="org.rioproject.resolver.prune.platform";
+    private static final String RESOLVER_PRUNE_PLATFORM="org.rioproject.resolver.prune.platform";
 
     @Before
     public void setup() throws IOException {

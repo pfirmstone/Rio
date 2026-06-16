@@ -40,8 +40,8 @@ public class RemoteEventTreeModel extends DefaultTreeTableModel {
     private FilterCriteria filterCriteria;
     private final RemoteServiceEventNodeComparator comparator = new RemoteServiceEventNodeComparator();
     private final FilterHandler filterControl = new FilterHandler();
-    private final List<DeploymentNode> completeModel = new ArrayList<DeploymentNode>();
-    private final List<DeploymentNode> filteredModel = new ArrayList<DeploymentNode>();
+    private final List<DeploymentNode> completeModel = new ArrayList<>();
+    private final List<DeploymentNode> filteredModel = new ArrayList<>();
     private final String COMPLETE = "complete";
     private final String FILTER = "filtered";
 

@@ -1,12 +1,12 @@
 /*
  * Copyright to the original author or authors.
- *
+ * 
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
+ * 
+ *         http://www.apache.org/licenses/LICENSE-2.0
+ * 
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -43,19 +43,19 @@ public class ComputeResourcePolicyHandler implements ThresholdListener {
     private final EventHandler thresholdEventHandler;
     private final ServiceElement serviceElement;
     private final Executor thresholdTaskPool = Executors.newCachedThreadPool();
-    private final ServiceConsumer serviceConsumer;
+    private final ProvisionManagerHandler provisionManagerHandler;
     private final ServiceBeanInstance instance;
     private final AtomicBoolean terminate = new AtomicBoolean(false);
     private static final Logger logger = LoggerFactory.getLogger(ComputeResourcePolicyHandler.class.getName());
 
     public ComputeResourcePolicyHandler(final ServiceElement serviceElement,
                                         final EventHandler thresholdEventHandler,
-                                        final ServiceConsumer serviceConsumer,
+                                        final ProvisionManagerHandler provisionManagerHandler,
                                         final ServiceBeanInstance instance) {
         this.serviceElement = serviceElement;
         this.thresholdEventHandler = thresholdEventHandler;
         this.instance = instance;
-        this.serviceConsumer = serviceConsumer;
+        this.provisionManagerHandler = provisionManagerHandler;
     }
 
 
@@ -64,7 +64,7 @@ public class ComputeResourcePolicyHandler implements ThresholdListener {
     }
 
     public void notify(Calculable calculable, ThresholdValues thresholdValues, ThresholdType type) {
-        if(terminate.get())
+        if (terminate.get())
             return;
         String status = type.name().toLowerCase();
         logger.debug("Threshold={}, Status={}, Value={}, Low={}, High={}",
@@ -74,28 +74,28 @@ public class ComputeResourcePolicyHandler implements ThresholdListener {
                      thresholdValues.getLowThreshold(),
                      thresholdValues.getHighThreshold());
 
-        if(type==ThresholdType.BREACHED)  {
+        if (type == ThresholdType.BREACHED)  {
             double tValue = calculable.getValue();
-            if(tValue>thresholdValues.getCurrentHighThreshold()) {
-                if(serviceConsumer!=null) {
-                    serviceConsumer.updateMonitors();
+            if (tValue>thresholdValues.getCurrentHighThreshold()) {
+                if (provisionManagerHandler !=null) {
+                    provisionManagerHandler.updateMonitors();
                 }
-                if(calculable.getId().equals(SystemWatchID.JVM_MEMORY)) {
+                if (calculable.getId().equals(SystemWatchID.JVM_MEMORY)) {
                     logger.warn("Memory utilization is {}, threshold set at {}, request immediate garbage collection",
                                 calculable.getValue(), thresholdValues.getCurrentHighThreshold());
                     System.gc();
                 }
-                if(calculable.getId().contains(SystemWatchID.JVM_PERM_GEN)) {
+                if (calculable.getId().contains(SystemWatchID.JVM_PERM_GEN)) {
                     logger.warn("Perm Gen has breached with utilization > {}", thresholdValues.getCurrentHighThreshold());
-                    //if(isEnlisted())
+                    //if (isEnlisted())
                     //release(false);
                     //svcConsumer.cancelRegistrations();
                 }
 
             }
-        } else if(type== ThresholdType.CLEARED) {
-            if(serviceConsumer!=null) {
-                serviceConsumer.updateMonitors();
+        } else if (type == ThresholdType.CLEARED) {
+            if (provisionManagerHandler !=null) {
+                provisionManagerHandler.updateMonitors();
             }
         }
 

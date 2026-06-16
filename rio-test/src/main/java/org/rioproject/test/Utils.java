@@ -1,12 +1,12 @@
 /*
  * Copyright to the original author or authors.
- *
+ * 
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
+ * 
+ *         http://www.apache.org/licenses/LICENSE-2.0
+ * 
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -58,9 +58,6 @@ public class Utils {
         }
 
         checkSecurityPolicy();
-
-        if(System.getProperty(Constants.GROUPS_PROPERTY_NAME)==null)
-            System.setProperty(Constants.GROUPS_PROPERTY_NAME, "rio");
     }
 
     public static void checkSecurityPolicy() {
@@ -82,7 +79,7 @@ public class Utils {
                 System.setProperty("rio.home", rioHome);
         }
         if(rioHome==null)
-            throw new RuntimeException("RIO_HOME not set. You " +
+            throw new RuntimeException("RIO_HOME or rio.home is not set. You " +
                                        "must set it as a system property " +
                                        "or it must be set in your " +
                                        "environment");

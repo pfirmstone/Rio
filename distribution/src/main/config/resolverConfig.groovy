@@ -30,8 +30,8 @@ resolver {
     jar = "${rioHome()}/lib/resolver/resolver-aether-${RioVersion.VERSION}.jar"
 
     repositories {
-        remote = ["rio"    : "http://www.rio-project.org/maven2",
-                  "central": "http://repo1.maven.org/maven2"]
+        remote = ["rio"    : "https://repo.repsy.io/mvn/dreedy/maven",
+                  "central": "https://repo1.maven.org/maven2"]
 
         flatDirs = [new File(rioHome(), "lib-dl"),
                     new File(rioHome(), "config/poms"),
@@ -39,6 +39,6 @@ resolver {
     }
 }
 
-def rioHome() {
+static def rioHome() {
     return System.getProperty("rio.home")
 }

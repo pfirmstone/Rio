@@ -1,12 +1,12 @@
 /*
  * Copyright to the original author or authors.
- *
+ * 
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
+ * 
+ *         http://www.apache.org/licenses/LICENSE-2.0
+ * 
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -34,20 +34,15 @@ import java.util.List;
 public class CybernodeAdapter {
     private final ServiceBeanInstantiator instantiator;
     private final CybernodeImpl impl;
-    private final ComputeResource computeResource;
 
     public CybernodeAdapter(final ServiceBeanInstantiator instantiator,
-                            final CybernodeImpl impl,
-                            final ComputeResource computeResource) {
-        if (instantiator == null)
-            throw new IllegalArgumentException("instantiator is null");
-        if (impl == null)
+                            final CybernodeImpl impl) {
+        if (impl == null) {
             throw new IllegalArgumentException("impl is null");
-        if (computeResource == null)
-            throw new IllegalArgumentException("computeResource is null");
+        }
+
         this.instantiator = instantiator;
         this.impl = impl;
-        this.computeResource = computeResource;
     }
 
     public ServiceBeanInstantiator getInstantiator() {
@@ -55,15 +50,15 @@ public class CybernodeAdapter {
     }
 
     public ComputeResource getComputeResource() {
-        return computeResource;
+        return impl.getComputeResource();
     }
 
     public ResourceCapability getResourceCapability() {
-        return computeResource.getResourceCapability();
+        return impl.getComputeResource().getResourceCapability();
     }
 
     public List<DeployedService> getDeployedServices() {
-        List<DeployedService> list = new ArrayList<DeployedService>();
+        List<DeployedService> list = new ArrayList<>();
 
         for (ServiceRecord record :
             impl.getServiceRecords(ServiceRecord.ACTIVE_SERVICE_RECORD)) {

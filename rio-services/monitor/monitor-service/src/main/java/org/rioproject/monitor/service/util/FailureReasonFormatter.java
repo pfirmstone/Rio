@@ -1,12 +1,12 @@
 /*
  * Copyright to the original author or authors.
- *
+ * 
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
+ * 
+ *         http://www.apache.org/licenses/LICENSE-2.0
+ * 
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -37,17 +37,20 @@ public final class FailureReasonFormatter {
      * @throws IllegalArgumentException if any of the parameters are {@code null}
      */
     public static String format(final ProvisionRequest request, final ServiceResourceSelector selector) {
-        if(request==null)
+        if (request == null) {
             throw new IllegalArgumentException("request is null");
-        if(selector==null)
+        }
+        if (selector == null) {
             throw new IllegalArgumentException("selector is null");
+        }
         StringBuilder failureReasonBuilder = new StringBuilder();
-        if(!request.getFailureReasons().isEmpty()) {
+        if (!request.getFailureReasons().isEmpty()) {
             failureReasonBuilder.append("Failure Reason(s):\n");
-            int i=1;
+            int i = 1;
             for(String reason : request.getFailureReasons()) {
-                if(i>1)
+                if (i > 1) {
                     failureReasonBuilder.append("\n");
+                }
                 failureReasonBuilder.append(i++).append(": ").append(reason);
             }
         } else {

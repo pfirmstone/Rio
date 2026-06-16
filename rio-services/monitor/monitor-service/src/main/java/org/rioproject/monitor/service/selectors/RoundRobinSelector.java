@@ -1,12 +1,12 @@
 /*
  * Copyright to the original author or authors.
- *
+ * 
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
+ * 
+ *         http://www.apache.org/licenses/LICENSE-2.0
+ * 
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -40,7 +40,7 @@ public class RoundRobinSelector extends ServiceResourceSelector {
      * Construct a RoundRobinSelector
      */
     public RoundRobinSelector() {
-        collection = new LinkedList<LeasedResource>();
+        collection = new LinkedList<>();
     }
 
     /**
@@ -48,10 +48,8 @@ public class RoundRobinSelector extends ServiceResourceSelector {
      */
     public void serviceResourceSelected(ServiceResource svcResource) {
         LinkedList<LeasedResource> list = (LinkedList<LeasedResource>)collection;
-        synchronized(collectionLock) {
-            list.remove(svcResource);
-            list.addLast(svcResource);
-        }
+        list.remove(svcResource);
+        list.addLast(svcResource);
     }
 
     /**
@@ -60,10 +58,8 @@ public class RoundRobinSelector extends ServiceResourceSelector {
     @Override
     protected void update(LeasedResource resource) {
         LinkedList<LeasedResource> list = (LinkedList<LeasedResource>)collection;
-        synchronized(collectionLock) {
-            int index = list.indexOf(resource);
-            if(index != -1)
-                list.set(index, resource);
-        }
+        int index = list.indexOf(resource);
+        if(index != -1)
+            list.set(index, resource);
     }
 }

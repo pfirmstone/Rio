@@ -18,7 +18,6 @@ import org.rioproject.net.HostUtil
 * Default configuration properties used to launch Rio services from the test framework
 */
 manager {
-
     String rioHome = System.getProperty("rio.home")
     StringBuilder classPath = new StringBuilder()
     File rioLib = new File(rioHome+'/lib/')
@@ -33,41 +32,43 @@ manager {
             classPath.append(file.path)
         }
     }
+    File libLogDir = new File(rioLib, "logging")
+    for(File file : libLogDir.listFiles()) {
+        if (file.isFile()) {
+            classPath.append(File.pathSeparator)
+            classPath.append(file.path)
+        }
+    }
 
-    File toolsJar = new File(System.getProperty("JAVA_HOME"), "/lib/tools.jar")
-    if(toolsJar.exists())
-        classPath.append(File.pathSeparator).append(toolsJar.path)
+    classPath.append(File.pathSeparator).append(System.getProperty("JAVA_HOME")).append("/lib/tools.jar")
     execClassPath = classPath.toString()
 
-    inheritOptions = false
+    inheritOptions = true
 
-    /* Get the directory that the logging FileHandler will create the service log.  */
-    String opSys = System.getProperty('os.name')
-    String rootLogDir = opSys.startsWith("Windows")?"${rioHome}/logs/test":"/tmp"
-    File logDir = new File(rootLogDir)
-    if(!logDir.exists())
-        logDir.mkdirs()
-    String name = System.getProperty('user.name')
-
-    log = "${rootLogDir}${File.separator}${name}${File.separator}logs"
+    log = "${rioHome}${File.separator}logs"
 
     String address = HostUtil.getHostAddressFromProperty("java.rmi.server.hostname");
     System.setProperty("hostAddress", address)
 
-    String serialFilter="org.rioproject.**;net.jini.**;com.sun.**"
+    String serialFilter="\"org.rioproject.**;net.jini.**;com.sun.**\""
 
     jvmOptions =
-            '-Djdk.serialFilter='+serialFilter+' '+
-            '-Dsun.rmi.registry.registryFilter='+serialFilter+' '+
-            '-Dsun.rmi.transport.dgcFilter='+serialFilter+' '+
-            '-Djava.net.preferIPv4Stack=true '+
             '-Djava.protocol.handler.pkgs=org.rioproject.url '+
-            '-Djava.rmi.server.useCodebaseOnly=false '+
-            '-XX:+HeapDumpOnOutOfMemoryError -XX:+UseConcMarkSweepGC -XX:+AggressiveOpts -XX:HeapDumpPath=${rio.home}${/}logs '+
-            '-server -Xms8m -Xmx256m -Djava.security.policy=${rio.home}${/}policy${/}policy.all '+
-            '-Drio.home=${rio.home} -Drio.test.attach '+
-            '-Dorg.rioproject.groups=${org.rioproject.groups} '+
-            '-Dorg.rioproject.service=${service}'
+                    '-Djava.rmi.server.useCodebaseOnly=false '+
+                    '-Djdk.serialFilter='+serialFilter+' '+
+                    '-Dsun.rmi.registry.registryFilter='+serialFilter+' '+
+                    '-Dsun.rmi.transport.dgcFilter='+serialFilter+' '+
+                    '-Djava.net.preferIPv4Stack=true '+
+                    '-XX:+HeapDumpOnOutOfMemoryError -XX:+UseConcMarkSweepGC ' +
+                    '-XX:+AggressiveOpts -XX:HeapDumpPath=${rio.home}${/}logs '+
+                    '-server -Xms8m -Xmx256m ' +
+                    '-Djava.security.policy=${rio.home}/policy/policy.all '+
+                    '-Dlogback.configurationFile=${rio.home}/config/logging/logback.groovy ' +
+                    '-Djava.util.logging.config.file=${rio.home}/config/logging/logging.properties ' +
+                    '-Dorg.rioproject.keystore=${rio.home}/config/security/rio-cert.ks ' +
+                    '-Drio.home=${rio.home} -Drio.test.attach '+
+                    '-Dorg.rioproject.groups=${org.rioproject.groups} '+
+                    '-Drio.log.dir=${rio.log.dir} -Dorg.rioproject.service=${service}'
 
     /*
      * Remove any previously created service log files

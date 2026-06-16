@@ -1,12 +1,12 @@
 /*
  * Copyright to the original author or authors.
- *
+ * 
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
+ * 
+ *         http://www.apache.org/licenses/LICENSE-2.0
+ * 
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -29,7 +29,6 @@ import java.util.Map;
  */
 @SuppressWarnings("PMD.AvoidThrowingRawExceptionTypes")
 public class TestConfig {
-    public enum LoggingSystem { JUL, LOGBACK }
     private String groups;
     private String locators;
     private Integer numCybernodes;
@@ -42,9 +41,51 @@ public class TestConfig {
     private String component;
     private boolean runHarvester;
     private long timeout;
-    private LoggingSystem loggingSystem;
+    private String testConfigLocation;
+    private boolean https;
 
     TestConfig(String testClassName) {
+        this.testClassName = testClassName;
+        component = testClassName;
+        int ndx = component.lastIndexOf(".");
+        if (ndx > -1)
+            component = component.substring(ndx + 1);
+        testConfigLocation = System.getProperty("org.rioproject.test.config");
+
+            /* If the property isnt declared look for the test configuration
+            in the expected place. If found, use it */
+        if(testConfigLocation==null) {
+            File tc = new File(System.getProperty("user.dir"),
+                               "src"+File.separator+
+                                       "test"+File.separator+
+                                       "conf"+File.separator+
+                                       "test-config.groovy");
+            if(tc.exists())
+                testConfigLocation = tc.getPath();
+        }
+        if(testConfigLocation!=null) {
+            loadConfig(testConfigLocation);
+        }
+    }
+
+    TestConfig(RioTestConfig rioTestConfig, String testClassName) {
+        autoDeploy = rioTestConfig.autoDeploy();
+        groups = rioTestConfig.groups().length() == 0 ? null : rioTestConfig.groups();
+        if (groups != null) {
+            System.setProperty(Constants.GROUPS_PROPERTY_NAME, groups);
+        }
+        locators = rioTestConfig.locators().length() == 0 ? null : rioTestConfig.locators();
+        numCybernodes = rioTestConfig.numCybernodes();
+        numMonitors = rioTestConfig.numMonitors();
+        numLookups = rioTestConfig.numLookups();
+        opString = rioTestConfig.opstring().length() == 0 ? null : rioTestConfig.opstring();
+        autoDeploy = rioTestConfig.autoDeploy();
+        https = rioTestConfig.https();
+
+        if (opString == null) {
+            autoDeploy = false;
+        }
+        testManager = new TestManager(true);
         this.testClassName = testClassName;
         component = testClassName;
         int ndx = component.lastIndexOf(".");
@@ -98,10 +139,6 @@ public class TestConfig {
             runHarvester = b != null && b;
             String sTimeout = getString(configMap.get(component + ".timeout"));
             timeout = sTimeout==null?0:Long.parseLong(sTimeout);
-            loggingSystem = (LoggingSystem) configMap.get(component + ".loggingSystem");
-            if(loggingSystem==null) {
-                loggingSystem = LoggingSystem.LOGBACK;
-            }
         }
     }
 
@@ -151,8 +188,16 @@ public class TestConfig {
         return timeout;
     }
 
-    public LoggingSystem getLoggingSystem() {
-        return loggingSystem;
+    public String getTestClassName() {
+        return testClassName;
+    }
+
+    public String getTestConfigLocation() {
+        return testConfigLocation;
+    }
+
+    public boolean useHttps() {
+        return https;
     }
 
     private boolean hasConfigurationFor(final String component, final Map<String, Object> map) {

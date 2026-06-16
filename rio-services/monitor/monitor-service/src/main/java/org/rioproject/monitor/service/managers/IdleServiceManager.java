@@ -1,12 +1,12 @@
 /*
  * Copyright to the original author or authors.
- *
+ * 
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
+ * 
+ *         http://www.apache.org/licenses/LICENSE-2.0
+ * 
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -40,7 +40,7 @@ import java.util.concurrent.TimeUnit;
  * @author Dennis Reedy
  */
 public class IdleServiceManager {
-    private final Map<ServiceActivityProvider, Long> activityMap = new ConcurrentHashMap<ServiceActivityProvider, Long>();
+    private final Map<ServiceActivityProvider, Long> activityMap = new ConcurrentHashMap<>();
     private final Long maxIdleTime;
     private final ServiceElement serviceElement;
     private final ScheduledExecutorService scheduledExecutorService = Executors.newScheduledThreadPool(1);
@@ -79,7 +79,7 @@ public class IdleServiceManager {
         public void run() {
             try {
                 long now = System.currentTimeMillis();
-                List<ServiceActivityProvider> idleServices = new ArrayList<ServiceActivityProvider>();
+                List<ServiceActivityProvider> idleServices = new ArrayList<>();
                 for (Map.Entry<ServiceActivityProvider, Long> entry : activityMap.entrySet()) {
                     try {
                         if (!entry.getKey().isActive()) {

@@ -1,12 +1,12 @@
 /*
- * Copyright 2008 the original author or authors.
- *
+ * Copyright to the original author or authors.
+ * 
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
+ * 
+ *         http://www.apache.org/licenses/LICENSE-2.0
+ * 
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -553,16 +553,19 @@ public class MonitorControl {
     }
 
     static Map<String, DeployAdmin> getDeployedOpStrings(final ServiceItem[] items) {
-        Map<String, DeployAdmin> map = new HashMap<String, DeployAdmin>();
+        Map<String, DeployAdmin> map = new HashMap<>();
         for (ServiceItem item : items) {
             try {
                 DeployAdmin deployAdmin = (DeployAdmin) CLI.getInstance().getServiceFinder().
                         getPreparedAdmin(item.service);
                 OperationalStringManager[] opMgrs = deployAdmin.getOperationalStringManagers();
                 for (OperationalStringManager opMgr : opMgrs) {
-                    OperationalString opString = opMgr.getOperationalString();
-                    if (opMgr.isManaging()) {
-                        map.put(opString.getName(), deployAdmin);
+                    try {
+                        if (opMgr.isManaging()) {
+                            map.put(opMgr.getName(), deployAdmin);
+                        }
+                    } catch (Throwable t) {
+                        System.out.println(t.getClass().getName() +": " + t.getMessage());
                     }
                 }
             } catch (Exception e) {

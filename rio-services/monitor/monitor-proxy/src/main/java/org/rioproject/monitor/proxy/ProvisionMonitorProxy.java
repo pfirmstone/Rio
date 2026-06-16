@@ -1,12 +1,12 @@
 /*
  * Copyright to the original author or authors.
- *
+ * 
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
+ * 
+ *         http://www.apache.org/licenses/LICENSE-2.0
+ * 
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -105,7 +105,7 @@ public class ProvisionMonitorProxy extends AbstractProxy implements ProvisionMon
      */
     /** @see org.rioproject.deploy.ProvisionManager#register */
     public EventRegistration register(MarshalledObject<ServiceBeanInstantiator> instantiator,
-                                      MarshalledObject handback,
+                                      MarshalledObject<?> handback,
                                       ResourceCapability resourceCapability,
                                       List<DeployedService> deployedServices,
                                       int serviceLimit,
@@ -123,7 +123,7 @@ public class ProvisionMonitorProxy extends AbstractProxy implements ProvisionMon
     }
 
     public ServiceBeanInstantiator[] getServiceBeanInstantiators() throws IOException {
-        Collection<ServiceBeanInstantiator> serviceBeanInstantiators = new ArrayList<ServiceBeanInstantiator>();
+        Collection<ServiceBeanInstantiator> serviceBeanInstantiators = new ArrayList<>();
         try {
             for(MarshalledObject<ServiceBeanInstantiator> marshalledObject : getWrappedServiceBeanInstantiators()) {
                 serviceBeanInstantiators.add(marshalledObject.get());
@@ -131,7 +131,7 @@ public class ProvisionMonitorProxy extends AbstractProxy implements ProvisionMon
         } catch (ClassNotFoundException e) {
             throw new IOException("Unwrapping a Cybernode", e);
         }
-        return serviceBeanInstantiators.toArray(new ServiceBeanInstantiator[serviceBeanInstantiators.size()]);
+        return serviceBeanInstantiators.toArray(new ServiceBeanInstantiator[0]);
     }
 
     /** @see org.rioproject.deploy.ProvisionManager#update */
@@ -230,8 +230,7 @@ public class ProvisionMonitorProxy extends AbstractProxy implements ProvisionMon
         }
 
         /* Implement TrustVerifier */
-        public boolean isTrustedObject(Object obj, TrustVerifier.Context ctx)
-        throws RemoteException {
+        public boolean isTrustedObject(Object obj, TrustVerifier.Context ctx) {
             if (obj == null || ctx == null) {
                 throw new IllegalArgumentException();
             } else if (!(obj instanceof ConstrainableProvisionMonitorProxy)) {

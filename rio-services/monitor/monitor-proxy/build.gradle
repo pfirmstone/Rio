@@ -1,0 +1,29 @@
+group = 'org.rioproject.monitor'
+description = 'Module :: Monitor Service Proxy'
+dependencies {
+    compileOnly project(':rio-lib')
+    compileOnly group: 'net.jini', name: 'jsk-lib', version: "${riverVersion}"
+    compileOnly group: 'net.jini', name: 'jsk-platform', version: "${riverVersion}"
+}
+
+jar {
+    manifest {
+        attributes("Implementation-Title": "Rio Project",
+                "Implementation-Version": "${project.version}",
+                "Rio-Version" : "${project.version}",
+                "Rio-Build": buildTime
+        )
+    }
+    from(configurations.compileOnly.collect { it.isDirectory() ? it : zipTree(it) }) {
+        include "org/rioproject/monitor/**"
+        include "org/rioproject/proxy/**"
+        include "org/rioproject/entry/**"
+        include "com/artima/lookup/**"
+    }
+
+    into("META-INF/maven/$project.group/$project.name") {
+        from { generatePomFileForMavenJavaPublication }
+        rename ".*", "pom.xml"
+    }
+}
+

@@ -1,12 +1,12 @@
 /*
  * Copyright to the original author or authors.
- *
+ * 
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
+ * 
+ *         http://www.apache.org/licenses/LICENSE-2.0
+ * 
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -28,16 +28,15 @@ import org.rioproject.impl.service.ServiceResource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * Manages services of type fixed.
  */
 public class FixedServiceManager extends PendingServiceElementManager {
-    private final List<ServiceResource> inProcessResource = Collections.synchronizedList(new ArrayList<ServiceResource>());
+    private final List<ServiceResource> inProcessResource = new CopyOnWriteArrayList<>();
     private final Logger logger = LoggerFactory.getLogger(FixedServiceManager.class);
 
     /**
@@ -145,6 +144,9 @@ public class FixedServiceManager extends PendingServiceElementManager {
                     try {
                         if (clearedMaxPerMachineAndIsolated(request, ir.getHostAddress()) && ir.canProvision(request)) {
                             numDeployed = doDeploy(resource, request);
+                        } else {
+                            logger.info("[{}] Did not clear max per machine and isolated check",
+                                        LoggingUtil.getLoggingName(request));
                         }
                     } catch (ProvisionException e) {
                         request.setType(ProvisionRequest.Type.UNINSTANTIABLE);
@@ -181,10 +183,9 @@ public class FixedServiceManager extends PendingServiceElementManager {
      * @param resource The ServiceResource
      * @param request  The ProvisionRequest
      * @return The number deployed
-     * @throws Exception If there are errors
      */
-    private int doDeploy(final ServiceResource resource, final ProvisionRequest request) throws Exception {
-        return (doDeploy(resource, request, true));
+    private int doDeploy(final ServiceResource resource, final ProvisionRequest request)  {
+        return doDeploy(resource, request, true);
     }
 
     /**
@@ -194,10 +195,8 @@ public class FixedServiceManager extends PendingServiceElementManager {
      * @param req              The ProvisionRequest
      * @param changeInstanceID If true, increment the instanceID
      * @return The number deployed
-     * @throws Exception If there are errors
      */
-    private int doDeploy(final ServiceResource resource, final ProvisionRequest req, final boolean changeInstanceID)
-        throws Exception {
+    private int doDeploy(final ServiceResource resource, final ProvisionRequest req, final boolean changeInstanceID) {
         int numAllowed = getNumAllowed(resource, req);
         if (numAllowed > 0) {
             long currentID = req.getServiceElement().getServiceBeanConfig().getInstanceID();

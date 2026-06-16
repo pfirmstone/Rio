@@ -49,9 +49,7 @@ public class MacUIHelper {
      * @return true if the operating system is Mac OS
      */
     public static boolean isMacOS() {
-        if (System.getProperty("mrj.version") != null)
-            return (true);
-        return (false);
+        return System.getProperty("mrj.version") != null;
     }
 
     /**
@@ -67,9 +65,9 @@ public class MacUIHelper {
         if (!isMacOS())
             return;
         try {
-            Class appClass = MacUIHelper.class.getClassLoader().loadClass(
+            Class<?> appClass = MacUIHelper.class.getClassLoader().loadClass(
                 "com.apple.eawt.Application");
-            Class adapterClass = MacUIHelper.class.getClassLoader().loadClass(
+            Class<?> adapterClass = MacUIHelper.class.getClassLoader().loadClass(
                 "com.apple.eawt.ApplicationListener");
             Object app = appClass.newInstance();
             Method addApplicationListener =
@@ -116,8 +114,7 @@ public class MacUIHelper {
         /**
          * Reflection-based invocation
          */
-        public Object invoke(Object target, Method method, Object[] args)
-            throws Throwable {
+        public Object invoke(Object target, Method method, Object[] args) {
 
             setHandled(args[0]);
             if (method.getName().equals("handleAbout")) {

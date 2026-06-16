@@ -1,0 +1,47 @@
+/*
+ * Copyright to the original author or authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+group = 'org.rioproject.resolver'
+description = 'Module :: Project Module Resolver'
+dependencies {
+    compile project(':resolver-aether')
+    compile project(':rio-platform')
+    compile group: 'org.codehaus.groovy', name: 'groovy-all', version: "${groovyVersion}"
+    compile group: 'org.eclipse.aether', name: 'aether-api', version: '0.9.0.M3'
+    compile group: 'org.eclipse.aether', name: 'aether-spi', version: '0.9.0.M3'
+    compile group: 'org.eclipse.aether', name: 'aether-util', version: '0.9.0.M3'
+    compile group: 'org.eclipse.aether', name: 'aether-impl', version: '0.9.0.M3'
+    compile group: 'org.apache.maven', name: 'maven-aether-provider', version: '3.1.0'
+    compile group: 'org.apache.maven.wagon', name: 'wagon-provider-api', version: '1.0'
+    compile group: 'org.apache.maven', name: 'maven-settings-builder', version: '3.1.0'
+    compile group: 'org.apache.maven', name: 'maven-settings', version: '3.1.0'
+    compile(group: 'org.apache.maven.wagon', name: 'wagon-http-lightweight', version: '1.0-beta-7') {
+        exclude(module: 'commons-logging')
+    }
+    testCompile group: 'junit', name: 'junit', version: '4.12'
+    testCompile group: 'org.slf4j', name: 'slf4j-jdk14', version: '1.7.12'
+    compileOnly group: 'org.slf4j', name: 'slf4j-api', version: '1.7.12'
+}
+
+jar {
+    manifest {
+        attributes("Class-Path": "resolver-aether-${version}.jar",
+                "Implementation-Title": "Rio Project Resolver",
+                "Implementation-Version": "${project.version}",
+                "Rio-Version" : "${project.version}",
+                "Rio-Build": buildTime
+        )
+    }
+}

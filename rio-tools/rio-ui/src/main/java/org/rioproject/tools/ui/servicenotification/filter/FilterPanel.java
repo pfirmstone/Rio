@@ -16,7 +16,6 @@
 package org.rioproject.tools.ui.servicenotification.filter;
 
 import org.rioproject.tools.ui.Constants;
-import org.rioproject.tools.ui.servicenotification.EventCollectorListener;
 import org.rioproject.tools.ui.servicenotification.EventColorManager;
 import org.rioproject.tools.ui.servicenotification.TreeExpansionListener;
 import org.rioproject.ui.Util;
@@ -42,19 +41,15 @@ import java.util.Properties;
 public class FilterPanel extends JPanel {
     private final JComboBox filterQuery;
     private final FilterParser filterParser = new FilterParser();
-    private final EventCollectorListener eventCollectorListener;
     private final EventColorManager eventColorManager = new EventColorManager();
-    private final JCheckBox useEventCollector;
 
     public FilterPanel(final FilterListener filterListener,
                        final TreeExpansionListener treeExpansionListener,
-                       final EventCollectorListener eventCollectorListener,
                        final Properties props) {
         super(new BorderLayout());
-        this.eventCollectorListener = eventCollectorListener;
         setBorder(BorderFactory.createCompoundBorder(BorderFactory.createEtchedBorder(),
                                                      BorderFactory.createEmptyBorder(8, 8, 8, 8)));
-        filterQuery = new JComboBox();
+        filterQuery = new JComboBox<String>();
         filterQuery.setEditable(true);
         filterQuery.addItem("");
         filterQuery.setSelectedIndex(0);
@@ -98,16 +93,6 @@ public class FilterPanel extends JPanel {
             e.printStackTrace();
         }
 
-        useEventCollector = new JCheckBox();
-        setUseEventCollectorCheckBoxText();
-        setCheckBox(useEventCollector, props, Constants.USE_EVENT_COLLECTOR, false);
-        useEventCollector.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent event) {
-                eventCollectorListener.handleEventCollectorRegistration(useEventCollector.isSelected());
-            }
-        });
-
-        p.add(useEventCollector, BorderLayout.EAST);
         add(p, BorderLayout.SOUTH);
 
         /*java.util.List<String> autoCompleteElements = new ArrayList<String>();
@@ -144,56 +129,28 @@ public class FilterPanel extends JPanel {
         collapse.setPreferredSize(new Dimension(22, 22));
         collapse.setMaximumSize(new Dimension(22, 22));
         collapse.setToolTipText("Collapse all nodes");
-        collapse.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent e) {
-                treeExpansionListener.collapse();
-            }
-        });
+        collapse.addActionListener(e -> treeExpansionListener.collapse());
 
         JButton expand = new JButton();
         expand.setIcon(expandIcon);
         expand.setPreferredSize(new Dimension(22, 22));
         expand.setMaximumSize(new Dimension(22, 22));
         expand.setToolTipText("Expand all nodes");
-        expand.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent e) {
-                treeExpansionListener.expand();
-            }
-        });
-        final JButton refresh = new JButton(refreshIcon);
-        refresh.setPreferredSize(new Dimension(22, 22));
-        refresh.setMaximumSize(new Dimension(22, 22));
-        refresh.getAccessibleContext().setAccessibleName("refresh events");
-        refresh.setToolTipText("Refresh the events");
+        expand.addActionListener(e -> treeExpansionListener.expand());
 
         final JButton colorOptions = new JButton(colorOptionsIcon);
         colorOptions.setPreferredSize(new Dimension(22, 22));
         colorOptions.setMaximumSize(new Dimension(22, 22));
         colorOptions.getAccessibleContext().setAccessibleName("event tree color options");
         colorOptions.setToolTipText("Event tree color options");
-        colorOptions.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                showColorOptionsDialog(SwingUtilities.windowForComponent(colorOptions));
-            }
-        });
+        colorOptions.addActionListener(e -> showColorOptionsDialog(SwingUtilities.windowForComponent(colorOptions)));
 
         toolBar.add(collapse);
         toolBar.add(expand);
-        toolBar.add(refresh);
-        refresh.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent actionEvent) {
-                eventCollectorListener.refresh();
-            }
-        });
+
         toolBar.add(colorOptions);
         add(toolBar, BorderLayout.EAST);
-        filterQuery.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                handleFilterQueryInput(filterListener);
-            }
-        });
+        filterQuery.addActionListener(e -> handleFilterQueryInput(filterListener));
     }
 
     private void handleFilterQueryInput(final FilterListener filterListener) {
@@ -336,16 +293,6 @@ public class FilterPanel extends JPanel {
         dialog.setSize(850, 405);
         dialog.setLocationRelativeTo(parent);
         dialog.setVisible(true);
-    }
-
-    public boolean getUseEventCollector() {
-        return useEventCollector.isSelected();
-    }
-
-    public void setUseEventCollectorCheckBoxText() {
-        useEventCollector.setText(String.format("Use EventCollector (discovered %d EventCollectors)",
-                                                eventCollectorListener.getEventControllerCount()));
-
     }
 
     private URL getSyntaxHelp() {

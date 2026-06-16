@@ -59,96 +59,92 @@ public class ProvisionMonitorPanel extends JPanel {
         graphView = new GraphView(frame, config, colorManager, monitor, orientation);
         JButton deploy = new JButton("Deploy ...");
 
-        deploy.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent event) {
-                OpStringAndOARFileChooser chooser = new OpStringAndOARFileChooser(frame, lastDir, lastArtifact);
-                final String chosen = chooser.getName();
-                if (chosen == null)
-                    return;
-                boolean isArtifact = false;
-                try {
-                    new Artifact(chosen);
-                    isArtifact = true;
-                    lastArtifact = chosen;
-                } catch (Exception e) {
-                    /* don't need to print stack trace here */
-                }
+        deploy.addActionListener(event -> {
+            OpStringAndOARFileChooser chooser = new OpStringAndOARFileChooser(frame, lastDir, lastArtifact);
+            final String chosen = chooser.getName();
+            if (chosen == null)
+                return;
+            boolean isArtifact = false;
+            try {
+                new Artifact(chosen);
+                isArtifact = true;
+                lastArtifact = chosen;
+            } catch (Exception e) {
+                /* don't need to print stack trace here */
+            }
 
-                /* If deploying an artifact or the oar is http based, deploy */
-                if (isArtifact || chosen.startsWith("http")) {
-                    SwingDeployHelper.deploy(chosen, monitor, frame);
-                } else {
-                    File opStringFile = new File(chosen);
-                    if (opStringFile.exists()) {
-                        lastDir = chooser.getCurrentDirectory();
-                        final OperationalString[] opstrings;
-                        try {
-                            if (opStringFile.getName().endsWith("oar")) {
-                                OAR oar = new OAR(opStringFile);
-                                opstrings = oar.loadOperationalStrings();
-                                // TODO: embed webster and stream the OAR
-                            } else {
-                                opstrings = parseOperationalString(opStringFile);
-                            }
-                        } catch (Exception e) {
-                            e.printStackTrace();
-                            Util.showError(e, frame, "Failure parsing " + opStringFile.getName());
-                            return;
+            /* If deploying an artifact or the oar is http based, deploy */
+            if (isArtifact || chosen.startsWith("http")) {
+                SwingDeployHelper.deploy(chosen, monitor, frame);
+            } else {
+                File opStringFile = new File(chosen);
+                if (opStringFile.exists()) {
+                    lastDir = chooser.getCurrentDirectory();
+                    final OperationalString[] opstrings;
+                    try {
+                        if (opStringFile.getName().endsWith("oar")) {
+                            OAR oar = new OAR(opStringFile);
+                            opstrings = oar.loadOperationalStrings();
+                            // TODO: embed webster and stream the OAR
+                        } else {
+                            opstrings = parseOperationalString(opStringFile);
                         }
-                        SwingDeployHelper.deploy(opstrings, monitor, frame, chosen);
-                    } else {
-                        JOptionPane.showMessageDialog(frame,
-                                                      "The OperationalString file " + chosen + " does not exist",
-                                                      "Deployment Failure",
-                                                      JOptionPane.ERROR_MESSAGE);
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                        Util.showError(e, frame, "Failure parsing " + opStringFile.getName());
+                        return;
                     }
+                    SwingDeployHelper.deploy(opstrings, monitor, frame, chosen);
+                } else {
+                    JOptionPane.showMessageDialog(frame,
+                                                  "The OperationalString file " + chosen + " does not exist",
+                                                  "Deployment Failure",
+                                                  JOptionPane.ERROR_MESSAGE);
                 }
             }
         });
 
         JButton undeploy = new JButton("Undeploy");
-        undeploy.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent event) {
-                String[] names = graphView.getOpStringNames();
-                JDialog dialog = new JDialog((JFrame)null, "Undeploy OperationalString", true);
-                UndeployPanel u = new UndeployPanel(names, dialog);
-                Container contentPane = dialog.getContentPane();
-                contentPane.add(u, BorderLayout.CENTER);
-                int width = 380;
-                int height = 225;
-                dialog.setSize(new Dimension(width, height));
-                dialog.setLocationRelativeTo(frame);
-                dialog.setVisible(true);
-                final String[] toUndeploy = u.getSelectedOpStringNames();
-                if(toUndeploy.length==0)
-                    return;
+        undeploy.addActionListener(event -> {
+            String[] names = graphView.getOpStringNames();
+            JDialog dialog = new JDialog((JFrame)null, "Undeploy OperationalString", true);
+            UndeployPanel u = new UndeployPanel(names, dialog);
+            Container contentPane = dialog.getContentPane();
+            contentPane.add(u, BorderLayout.CENTER);
+            int width = 380;
+            int height = 225;
+            dialog.setSize(new Dimension(width, height));
+            dialog.setLocationRelativeTo(frame);
+            dialog.setVisible(true);
+            final String[] toUndeploy = u.getSelectedOpStringNames();
+            if(toUndeploy.length==0)
+                return;
 
-                final WaitingDialog waitDialog = new WaitingDialog(frame, 500);
-                org.rioproject.tools.ui.util.SwingWorker worker = new org.rioproject.tools.ui.util.SwingWorker() {
-                    public Object construct() {
-                        for(String name : toUndeploy) {
-                            final GraphNode node = graphView.getOpStringNode(name);
-                            waitDialog.setWaitForLabel("Undeploying " + name + "...");
-                            try {
-                                DeployAdmin dAdmin = (DeployAdmin) node.getProvisionMonitor().getAdmin();
-                                dAdmin.undeploy(name);
-                            } catch (OperationalStringException e) {
-                                graphView.removeOpString(name);
-                            } catch (Exception e) {
-                                System.err.println("OUCH");
-                                e.printStackTrace();
-                            }
+            final WaitingDialog waitDialog = new WaitingDialog(frame, 500);
+            org.rioproject.tools.ui.util.SwingWorker worker = new org.rioproject.tools.ui.util.SwingWorker() {
+                public Object construct() {
+                    for(String name : toUndeploy) {
+                        final GraphNode node = graphView.getOpStringNode(name);
+                        waitDialog.setWaitForLabel("Undeploying " + name + "...");
+                        try {
+                            DeployAdmin dAdmin = (DeployAdmin) node.getProvisionMonitor().getAdmin();
+                            dAdmin.undeploy(name);
+                        } catch (OperationalStringException e) {
+                            graphView.removeOpString(name);
+                        } catch (Exception e) {
+                            System.err.println("OUCH");
+                            e.printStackTrace();
                         }
-                        return null;
                     }
+                    return null;
+                }
 
-                    @Override
-                    public void finished() {
-                        waitDialog.dispose();
-                    }
-                };
-                worker.start();
-            }
+                @Override
+                public void finished() {
+                    waitDialog.dispose();
+                }
+            };
+            worker.start();
         });
 
         JToolBar toolBar = new JToolBar(JToolBar.HORIZONTAL);
@@ -187,25 +183,19 @@ public class ProvisionMonitorPanel extends JPanel {
         final JButton fit = new JButton(fitIcon);
         fit.getAccessibleContext().setAccessibleName("fit display");
         fit.setToolTipText("Fit the graph into the display area");
-        fit.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent actionEvent) {
-                graphView.zoomToFit();
-            }
-        });
+        fit.addActionListener(actionEvent -> graphView.zoomToFit());
         final JButton refresh = new JButton(refreshIcon);
         refresh.getAccessibleContext().setAccessibleName("refresh display");
         refresh.setToolTipText("Refresh the display");
-        refresh.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent actionEvent) {
-                try {
-                    SwingUtilities.invokeLater(new Runnable() {
-                        public void run() {
-                            graphView.refresh();
-                        }
-                    });
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
+        refresh.addActionListener(actionEvent -> {
+            try {
+                SwingUtilities.invokeLater(new Runnable() {
+                    public void run() {
+                        graphView.refresh();
+                    }
+                });
+            } catch (Exception e) {
+                e.printStackTrace();
             }
         });
 
@@ -217,20 +207,16 @@ public class ProvisionMonitorPanel extends JPanel {
         west.getAccessibleContext().setAccessibleName("root at top");
         north.setToolTipText("Root at the top");
 
-        west.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent actionEvent) {
-                graphView.setOrientation(prefuse.Constants.ORIENT_LEFT_RIGHT);
-                west.setIcon(westSelectedIcon);
-                north.setIcon(northIcon);
-            }
+        west.addActionListener(actionEvent -> {
+            graphView.setOrientation(prefuse.Constants.ORIENT_LEFT_RIGHT);
+            west.setIcon(westSelectedIcon);
+            north.setIcon(northIcon);
         });
 
-        north.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent actionEvent) {
-                graphView.setOrientation(prefuse.Constants.ORIENT_TOP_BOTTOM);
-                north.setIcon(northSelectedIcon);
-                west.setIcon(westIcon);
-            }
+        north.addActionListener(actionEvent -> {
+            graphView.setOrientation(prefuse.Constants.ORIENT_TOP_BOTTOM);
+            north.setIcon(northSelectedIcon);
+            west.setIcon(westIcon);
         });
         //toolBar.add(zoomIn);
         toolBar.add(fit);

@@ -1,12 +1,12 @@
 /*
  * Copyright to the original author or authors.
- *
+ * 
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
+ * 
+ *         http://www.apache.org/licenses/LICENSE-2.0
+ * 
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -133,17 +133,17 @@ public class CybernodeProxy extends AbstractProxy implements Cybernode, Serializ
      * @see org.rioproject.deploy.ServiceBeanInstantiator#getName
      */
     public String getName() throws RemoteException {
-        if(name == null) {
+        if (name == null) {
             name = cybernodeProxy.getName();
         }
-        return(name);
+        return name;
     }
 
     /**
      * @see org.rioproject.deploy.ServiceBeanInstantiator#getInstantiatorUuid()
      */
-    public Uuid getInstantiatorUuid() throws RemoteException {
-        return(getReferentUuid());
+    public Uuid getInstantiatorUuid() {
+        return getReferentUuid();
     }
 
     /**
@@ -253,7 +253,7 @@ public class CybernodeProxy extends AbstractProxy implements Cybernode, Serializ
         }
 
         /* Implement TrustVerifier */
-        public boolean isTrustedObject(Object obj, TrustVerifier.Context ctx) throws RemoteException {
+        public boolean isTrustedObject(Object obj, TrustVerifier.Context ctx) {
             if (obj == null || ctx == null) {
                 throw new IllegalArgumentException();
             } else if (!(obj instanceof ConstrainableCybernodeProxy)) {

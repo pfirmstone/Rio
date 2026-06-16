@@ -1,0 +1,19 @@
+description = 'Module :: Rio service starters'
+dependencies {
+    compile project(':rio-platform')
+    compile group: 'org.apache.river', name: 'start', version: "${riverVersion}"
+    compileOnly group: 'org.slf4j', name: 'slf4j-api', version: "${slf4jVersion}"
+    implementation group: 'org.codehaus.groovy', name: 'groovy-all', version: "${groovyVersion}"
+    testCompile group: 'junit', name: 'junit', version: "${junitVersion}"
+}
+
+jar {
+    manifest {
+        attributes("Class-Path": "rio-platform-${version}.jar start-${riverVersion}.jar",
+                "Implementation-Title": "Rio Project",
+                "Implementation-Version": "${project.version}",
+                "Rio-Version" : "${project.version}",
+                "Rio-Build": buildTime
+        )
+    }
+}

@@ -19,19 +19,24 @@
  */
 
 import com.sun.jini.start.ServiceDescriptor
-import org.rioproject.url.ProtocolRegistryService
-import org.rioproject.url.artifact.Handler
-import org.rioproject.util.FileHelper
-import org.rioproject.util.RioHome
-import org.rioproject.util.ServiceDescriptorUtil
+
 import org.rioproject.config.Component
 import org.rioproject.resolver.maven2.Repository
+import org.rioproject.security.SecureEnv
+import org.rioproject.start.util.FileHelper
+import org.rioproject.start.util.ServiceDescriptorUtil
+import org.rioproject.url.ProtocolRegistryService
+import org.rioproject.url.artifact.Handler
+import org.rioproject.util.RioHome
+
 
 @Component('org.rioproject.start')
 class StartCybernodeConfig {
+    final boolean secure
 
     StartCybernodeConfig() {
-        ProtocolRegistryService.create().register("artifact", new Handler());
+        ProtocolRegistryService.create().register("artifact", new Handler())
+        secure = SecureEnv.setup()
     }
 
     String[] getConfigArgs(String rioHome) {
@@ -44,21 +49,24 @@ class StartCybernodeConfig {
         configArgs.addAll(FileHelper.getIfExists(common, rioHome + '/config/common.groovy'))
         configArgs.addAll(FileHelper.getIfExists(cybernode, rioHome + '/config/cybernode.groovy'))
         configArgs.addAll(FileHelper.getIfExists(computeResource, rioHome + '/config/compute_resource.groovy'))
-        return configArgs as String[]
+        configArgs as String[]
     }
 
     ServiceDescriptor[] getServiceDescriptors() {
         String m2Repo = Repository.getLocalRepository().absolutePath
         String rioHome = RioHome.get()
-        def websterRoots = [rioHome + '/lib', ';', m2Repo]
+        def websterRoots = [rioHome + '/lib-dl', ';',
+                            rioHome + '/lib',    ';',
+                            m2Repo]
 
         String policyFile = rioHome + '/policy/policy.all'
 
         def serviceDescriptors = [
-                ServiceDescriptorUtil.getWebster(policyFile, '0', websterRoots as String[]),
+                //ServiceDescriptorUtil.getWebster(policyFile, '0', websterRoots as String[]),
+                ServiceDescriptorUtil.getJetty('0', websterRoots as String[], secure),
                 ServiceDescriptorUtil.getCybernode(policyFile, getConfigArgs(rioHome))
         ]
-        return serviceDescriptors as ServiceDescriptor[]
+        serviceDescriptors as ServiceDescriptor[]
     }
 
 }
