@@ -221,7 +221,7 @@
             <dependency>
                 <groupId>org.apache.commons</groupId>
                 <artifactId>commons-compress</artifactId>
-                <version>1.0</version>
+                <version>1.21</version>
             </dependency>
 
             <dependency>
@@ -430,7 +430,7 @@
 
     <properties>
         <additionalparam>-Xdoclint:none</additionalparam>
-        <groovy.version>2.3.8</groovy.version>
+        <groovy.version>2.4.7</groovy.version>
         <gmaven.version>1.4</gmaven.version>
         <gmavenProviderSelection>2.0</gmavenProviderSelection>
         <junit.version>4.12</junit.version>
