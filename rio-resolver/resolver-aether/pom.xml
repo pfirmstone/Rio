@@ -15,9 +15,9 @@
     <packaging>jar</packaging>
 
     <properties>
-        <aetherVersion>1.0.0.v20140518</aetherVersion>
-        <mavenVersion>3.1.0</mavenVersion>
-        <wagonVersion>1.0</wagonVersion>
+        <aetherVersion>1.1.0</aetherVersion>
+        <mavenVersion>3.5.0</mavenVersion>
+        <wagonVersion>2.12</wagonVersion>
     </properties>
 
     <dependencies>
@@ -170,8 +170,7 @@
                                 </includes>
                             </artifactSet>
                             <transformers>
-                                <transformer
-                                        implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                                     <manifestEntries>
                                         <Implementation-Title>Rio Project</Implementation-Title>
                                         <Implementation-Version>${project.version}</Implementation-Version>
